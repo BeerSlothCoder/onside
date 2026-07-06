@@ -1,0 +1,22 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+*.keypair.json
+wallets/
+id.json
+
+# node
+node_modules/
+dist/
+.turbo/
+*.tsbuildinfo
+
+# anchor / rust
+target/
+.anchor/
+test-ledger/
+
+# misc
+.DS_Store
+*.log

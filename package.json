@@ -1,0 +1,20 @@
+{
+  "name": "onside",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Onside — prediction markets, played live. In-play micro-markets over any football stream, settled trustlessly on Solana from TxLINE Merkle-proof-verified match data.",
+  "license": "MIT",
+  "workspaces": [
+    "packages/txline-client",
+    "extension",
+    "crank",
+    "viewer"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "dev:extension": "npm run dev -w extension",
+    "dev:viewer": "npm run dev -w viewer",
+    "crank": "npm run start -w crank",
+    "test:program": "anchor test"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Onside — Prediction markets, played live",
+  "version": "0.1.0",
+  "description": "In-play micro-markets over any live football stream, settled trustlessly on Solana from TxLINE-verified match data.",
+  "permissions": ["storage", "activeTab"],
+  "optional_host_permissions": ["<all_urls>"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/watch*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Onside"
+  }
+}
