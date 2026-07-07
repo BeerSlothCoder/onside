@@ -12,18 +12,25 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Token, TokenAccount, Transfer};
 
+pub mod txoracle;
+use txoracle::{
+    BinaryExpression, Comparison, ScoreStat, StatTerm, TraderPredicate, ValidateStatArgs,
+    TXORACLE_PROGRAM_DEVNET,
+};
+
 // Placeholder program id (anchor example key) — replaced by our deploy key
 // via `anchor keys sync` before first devnet deploy.
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
-
-/// TxLINE txoracle program (devnet). Settlement proofs must verify against
-/// roots anchored by this program's `daily_scores_roots` PDA.
-pub const TXORACLE_PROGRAM_DEVNET: Pubkey =
-    pubkey!("6pW64gN1s2uqjHkn1unFeEjAwJkPGHoppGvS715wyP2J");
+declare_id!("DhFnzPPgyg77EczxLpmfuT2msD1yHzBLjWfz32q9A4B8");
 
 /// Devnet test USDC mint used for all pools (6 decimals).
 pub const USDC_MINT_DEVNET: Pubkey =
     pubkey!("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+
+/// After the first valid settlement, claims stay locked for this many seconds.
+/// During the window anyone may re-settle with a proof carrying a LATER data
+/// timestamp ("later proof wins") — protecting against settlement on a
+/// mid-match state (e.g. a half-time score posted as final).
+pub const FINALITY_WINDOW_SECS: i64 = 15 * 60;
 
 #[program]
 pub mod onside {
@@ -38,8 +45,13 @@ pub mod onside {
         market_kind: MarketKind,
         stat_key: u32,
         stat_key2: Option<u32>,
-        threshold: i64,
+        threshold: i32,
+        min_settle_ts: i64,
     ) -> Result<()> {
+        require!(
+            market_kind != MarketKind::MatchResult || stat_key2.is_some(),
+            OnsideError::MissingSecondStat
+        );
         let market = &mut ctx.accounts.market;
         market.authority = ctx.accounts.creator.key();
         market.fixture_id = fixture_id;
@@ -47,9 +59,12 @@ pub mod onside {
         market.stat_key = stat_key;
         market.stat_key2 = stat_key2;
         market.threshold = threshold;
+        market.min_settle_ts = min_settle_ts;
         market.state = MarketState::Open;
         market.pools = [0; MAX_SIDES];
         market.outcome = None;
+        market.settled_data_ts = 0;
+        market.claim_after = 0;
         market.vault = ctx.accounts.vault.key();
         market.bump = ctx.bumps.market;
         emit!(MarketCreated {
@@ -110,37 +125,84 @@ pub mod onside {
         Ok(())
     }
 
-    /// Settle the market with a TxLINE Merkle proof.
+    /// Settle the market with a TxLINE Merkle proof. **Permissionless.**
     ///
-    /// TODO(step: settlement): verify `proof` against the txoracle
-    /// `daily_scores_roots` account (passed as `txline_roots`) — either via
-    /// CPI into txoracle::validate_stat (mechanism A) or by verifying the
-    /// Merkle path in-program against the deserialized roots account
-    /// (mechanism B). Until then this instruction is gated to the market
-    /// authority so nothing fake can be demoed as trustless.
-    pub fn settle(ctx: Context<Settle>, outcome: u8, _proof: SettlementProof) -> Result<()> {
+    /// The caller claims an `outcome`; the program derives the predicate that
+    /// outcome implies for this market's stat keys, and CPIs into
+    /// txoracle::validate_stat to verify the proof against the Merkle roots
+    /// TxODDS anchors on-chain. A false claim simply fails.
+    ///
+    /// Finality: the proof's data timestamp must be ≥ market.min_settle_ts,
+    /// and for FINALITY_WINDOW_SECS after the first settlement anyone may
+    /// re-settle with a proof carrying a later data timestamp. Claims only
+    /// open after the window closes.
+    pub fn settle(ctx: Context<Settle>, outcome: u8, proof: SettlementProof) -> Result<()> {
         let market = &mut ctx.accounts.market;
         require!(
-            market.state == MarketState::Locked,
+            market.state == MarketState::Locked || market.state == MarketState::Settled,
             OnsideError::MarketNotLocked
         );
         require!(
             (outcome as usize) < market.side_count(),
             OnsideError::InvalidSide
         );
-        // Temporary trust gate — removed when proof verification lands.
+
+        let now = Clock::get()?.unix_timestamp;
+        let data_ts = proof.args.fixture_summary.update_stats.min_timestamp;
+
+        // Proof must be about this fixture, after the earliest settle time,
+        // and — on re-settlement — strictly newer than the accepted proof.
         require!(
-            ctx.accounts.settler.key() == market.authority,
-            OnsideError::ProofRequired
+            proof.args.fixture_summary.fixture_id == market.fixture_id as i64,
+            OnsideError::WrongFixture
         );
-        // The roots account must at least belong to the txoracle program.
+        require!(data_ts >= market.min_settle_ts, OnsideError::TooEarlyToSettle);
+        if market.state == MarketState::Settled {
+            require!(now < market.claim_after, OnsideError::SettlementFinal);
+            require!(data_ts > market.settled_data_ts, OnsideError::StaleProof);
+        }
+
+        // The proven stats must be exactly this market's stat keys.
         require!(
-            *ctx.accounts.txline_roots.owner == TXORACLE_PROGRAM_DEVNET,
-            OnsideError::BadRootsAccount
+            proof.args.stat_a.stat_to_prove.key == market.stat_key,
+            OnsideError::WrongStatKey
         );
 
+        // Derive the predicate the claimed outcome implies.
+        let (predicate, op, needs_stat_b) = market.predicate_for(outcome)?;
+        let mut args = proof.args.clone();
+        args.predicate = predicate;
+        args.op = op;
+        match (needs_stat_b, &args.stat_b) {
+            (true, Some(stat_b)) => {
+                require!(
+                    Some(stat_b.stat_to_prove.key) == market.stat_key2,
+                    OnsideError::WrongStatKey
+                );
+            }
+            (true, None) => return Err(OnsideError::MissingSecondStat.into()),
+            (false, _) => {
+                args.stat_b = None;
+                args.op = None;
+            }
+        }
+
+        // Trustless verification via CPI into txoracle.
+        let verdict = txoracle::validate_stat(
+            &ctx.accounts.txoracle_program,
+            &ctx.accounts.txline_roots,
+            &args,
+        )?;
+        require!(verdict, OnsideError::ProofRejected);
+
+        if market.state != MarketState::Settled {
+            market.claim_after = now
+                .checked_add(FINALITY_WINDOW_SECS)
+                .ok_or(OnsideError::Overflow)?;
+        }
         market.state = MarketState::Settled;
         market.outcome = Some(outcome);
+        market.settled_data_ts = data_ts;
         emit!(MarketSettled {
             market: market.key(),
             outcome
@@ -155,6 +217,11 @@ pub mod onside {
         require!(
             market.state == MarketState::Settled,
             OnsideError::MarketNotSettled
+        );
+        // Claims open only after the re-settlement window has closed.
+        require!(
+            Clock::get()?.unix_timestamp >= market.claim_after,
+            OnsideError::FinalityWindowOpen
         );
         let outcome = market.outcome.ok_or(OnsideError::MarketNotSettled)?;
         require!(bet.side == outcome, OnsideError::LosingBet);
@@ -228,26 +295,13 @@ pub enum MarketState {
     Settled,
 }
 
-/// TxLINE stat-validation payload passed to `settle`.
-/// Mirrors /api/scores/stat-validation; verified in the settlement step.
+/// TxLINE stat-validation payload passed to `settle` — the exact
+/// txoracle::validate_stat argument set (predicate/op are overwritten by the
+/// program from the market's outcome mapping, so a settler cannot smuggle in
+/// a different predicate than the outcome implies).
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct SettlementProof {
-    pub target_ts: i64,
-    pub update_count: u32,
-    pub min_timestamp: i64,
-    pub max_timestamp: i64,
-    pub events_sub_tree_root: [u8; 32],
-    pub event_stat_root: [u8; 32],
-    // Proof paths are capped for account-size sanity; real depth is small.
-    pub fixture_proof: Vec<ProofNode>,
-    pub main_tree_proof: Vec<ProofNode>,
-    pub stat_proof: Vec<ProofNode>,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct ProofNode {
-    pub hash: [u8; 32],
-    pub is_right_sibling: bool,
+    pub args: ValidateStatArgs,
 }
 
 #[account]
@@ -257,21 +311,73 @@ pub struct Market {
     pub market_kind: MarketKind,
     pub stat_key: u32,
     pub stat_key2: Option<u32>,
-    pub threshold: i64,
+    pub threshold: i32,
+    pub min_settle_ts: i64,
     pub state: MarketState,
     pub pools: [u64; MAX_SIDES],
     pub outcome: Option<u8>,
+    pub settled_data_ts: i64,
+    pub claim_after: i64,
     pub vault: Pubkey,
     pub bump: u8,
 }
 
 impl Market {
-    pub const SIZE: usize = 8 + 32 + 8 + 1 + 4 + 5 + 8 + 1 + 8 * MAX_SIDES + 2 + 32 + 1 + 16;
+    pub const SIZE: usize =
+        8 + 32 + 8 + 1 + 4 + 5 + 4 + 8 + 1 + 8 * MAX_SIDES + 2 + 8 + 8 + 32 + 1 + 16;
 
     pub fn side_count(&self) -> usize {
         match self.market_kind {
             MarketKind::MatchResult => 3,
             MarketKind::StatOver => 2,
+        }
+    }
+
+    /// Outcome sides:
+    ///   MatchResult: 0 = Home, 1 = Draw, 2 = Away  (stat_a − stat_b vs 0)
+    ///   StatOver:    0 = Over threshold, 1 = Under/equal  (integer stats:
+    ///                Under ⇔ value < threshold + 1)
+    /// Returns (predicate, op, needs_stat_b).
+    pub fn predicate_for(
+        &self,
+        outcome: u8,
+    ) -> Result<(TraderPredicate, Option<BinaryExpression>, bool)> {
+        match self.market_kind {
+            MarketKind::MatchResult => {
+                let comparison = match outcome {
+                    0 => Comparison::GreaterThan,
+                    1 => Comparison::EqualTo,
+                    2 => Comparison::LessThan,
+                    _ => return Err(OnsideError::InvalidSide.into()),
+                };
+                Ok((
+                    TraderPredicate { threshold: 0, comparison },
+                    Some(BinaryExpression::Subtract),
+                    true,
+                ))
+            }
+            MarketKind::StatOver => match outcome {
+                0 => Ok((
+                    TraderPredicate {
+                        threshold: self.threshold,
+                        comparison: Comparison::GreaterThan,
+                    },
+                    None,
+                    false,
+                )),
+                1 => Ok((
+                    TraderPredicate {
+                        threshold: self
+                            .threshold
+                            .checked_add(1)
+                            .ok_or(OnsideError::Overflow)?,
+                        comparison: Comparison::LessThan,
+                    },
+                    None,
+                    false,
+                )),
+                _ => Err(OnsideError::InvalidSide.into()),
+            },
         }
     }
 }
@@ -348,9 +454,13 @@ pub struct Settle<'info> {
     pub settler: Signer<'info>,
     #[account(mut)]
     pub market: Account<'info, Market>,
-    /// CHECK: TxLINE daily_scores_roots account; ownership checked in handler,
-    /// Merkle verification added in the settlement step.
+    /// CHECK: TxLINE daily_scores_roots PDA — must be owned by the txoracle
+    /// program; contents are verified by the validate_stat CPI itself.
+    #[account(owner = TXORACLE_PROGRAM_DEVNET @ OnsideError::BadRootsAccount)]
     pub txline_roots: UncheckedAccount<'info>,
+    /// CHECK: the txoracle program we CPI into — pinned by address.
+    #[account(address = TXORACLE_PROGRAM_DEVNET @ OnsideError::BadRootsAccount)]
+    pub txoracle_program: UncheckedAccount<'info>,
 }
 
 #[derive(Accounts)]
@@ -434,4 +544,24 @@ pub enum OnsideError {
     ProofRequired,
     #[msg("Roots account not owned by the TxLINE program")]
     BadRootsAccount,
+    #[msg("Proof is for a different fixture")]
+    WrongFixture,
+    #[msg("Proof data timestamp is before the market's earliest settle time")]
+    TooEarlyToSettle,
+    #[msg("Settlement is final; the finality window has closed")]
+    SettlementFinal,
+    #[msg("A proof with a newer data timestamp has already settled this market")]
+    StaleProof,
+    #[msg("Proven stat key does not match the market")]
+    WrongStatKey,
+    #[msg("This market kind requires a second stat term")]
+    MissingSecondStat,
+    #[msg("TxLINE rejected the proof for the claimed outcome")]
+    ProofRejected,
+    #[msg("Claims are locked until the finality window closes")]
+    FinalityWindowOpen,
+    #[msg("txoracle returned no data")]
+    NoReturnData,
+    #[msg("return data not from txoracle")]
+    WrongReturnSource,
 }

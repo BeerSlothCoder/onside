@@ -66,8 +66,15 @@ in the submission for review without installing anything.
       `txoracle.validateStat` on devnet — "away win" validates `true`,
       the false claim "home win" returns `false`
       (`npx tsx crank/src/stage1-validate.ts`)
-- [ ] Anchor program: create_market / place_bet / lock_market / settle / claim
-- [ ] Merkle-proof settlement (CPI vs in-program verification — CU-measured)
+- [x] **Anchor program deployed on devnet** —
+      [`DhFnzPPgyg77EczxLpmfuT2msD1yHzBLjWfz32q9A4B8`](https://explorer.solana.com/address/DhFnzPPgyg77EczxLpmfuT2msD1yHzBLjWfz32q9A4B8?cluster=devnet):
+      parimutuel USDC pools, permissionless proof-verified settlement
+- [x] **Trustless settlement live**: market on the real Portugal–Spain fixture
+      settled via CPI into `txoracle.validate_stat` —
+      [false "home win" claim rejected on-chain, true "away win" accepted](https://explorer.solana.com/tx/g4443sGxhsK5PEqVvdqKy6cQVPKT9t8vMgkYj1CKoP6NGoTumkttohUYCUyaL19qQwuhb72jHQ1swakWkLobfZT?cluster=devnet).
+      Settlement costs ~139k CU (10× headroom). "Later proof wins" finality
+      window (15 min) guards against mid-match proofs; claims open after it.
+- [ ] Pool math test suite (bankrun) + bet/claim e2e with devnet USDC
 - [ ] Extension overlay + demo-wallet judge mode
 - [ ] Crank automation + viewer + hosted deploy
 - [ ] Demo video + submission
