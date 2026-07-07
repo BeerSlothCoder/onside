@@ -2,6 +2,7 @@ import * as anchor from "@coral-xyz/anchor";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
+  createAssociatedTokenAccountIdempotentInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
@@ -61,9 +62,20 @@ export async function subscribeAndActivate(opts: {
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
+  // 0. Ensure the user's TxL ATA exists (required by subscribe even on free tier)
+  const createAtaIx = createAssociatedTokenAccountIdempotentInstruction(
+    opts.wallet.publicKey,
+    userTokenAccount,
+    opts.wallet.publicKey,
+    cfg.txlTokenMint,
+    TOKEN_2022_PROGRAM_ID,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+
   // 1. On-chain subscription
   const txSig = await opts.program.methods
     .subscribe(opts.serviceLevelId, durationWeeks)
+    .preInstructions([createAtaIx])
     .accounts({
       user: opts.wallet.publicKey,
       pricingMatrix: pricingMatrixPda,
@@ -108,8 +120,17 @@ export async function subscribeAndActivate(opts: {
     }),
   });
   if (!actRes.ok) throw new Error(`token/activate failed: ${actRes.status}`);
-  const actBody = (await actRes.json()) as { token?: string };
-  const apiToken = actBody.token ?? (actBody as unknown as string);
+  // The endpoint returns either JSON {token} or the token as plain text.
+  const raw = await actRes.text();
+  let apiToken = raw.trim();
+  try {
+    const parsed = JSON.parse(raw) as { token?: string };
+    if (parsed && typeof parsed === "object" && parsed.token) {
+      apiToken = parsed.token;
+    }
+  } catch {
+    /* plain-text token */
+  }
 
   return { jwt, apiToken, apiOrigin: cfg.apiOrigin };
 }

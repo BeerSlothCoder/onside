@@ -11,6 +11,10 @@ import "dotenv/config";
 import * as anchor from "@coral-xyz/anchor";
 import { Keypair } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 import {
   connectionFor,
   subscribeAndActivate,
@@ -19,7 +23,10 @@ import {
 } from "@onside/txline-client";
 
 async function main() {
-  const keypairPath = process.env.WALLET_KEYPAIR_PATH ?? "./wallets/crank.keypair.json";
+  const keypairPath = resolve(
+    REPO_ROOT,
+    process.env.WALLET_KEYPAIR_PATH ?? "wallets/crank.keypair.json"
+  );
   const secret = JSON.parse(readFileSync(keypairPath, "utf8")) as number[];
   const keypair = Keypair.fromSecretKey(Uint8Array.from(secret));
   const wallet = new anchor.Wallet(keypair);
@@ -30,7 +37,9 @@ async function main() {
   });
   anchor.setProvider(provider);
 
-  const idl = JSON.parse(readFileSync("./idl/txoracle.json", "utf8"));
+  const idl = JSON.parse(
+    readFileSync(resolve(REPO_ROOT, "crank/idl/txoracle.json"), "utf8")
+  );
   const program = new anchor.Program(idl, provider);
   if (!program.programId.equals(TXLINE_CONFIG.devnet.programId)) {
     throw new Error("IDL program id does not match TxLINE devnet program");
