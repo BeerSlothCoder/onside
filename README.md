@@ -61,6 +61,11 @@ in the submission for review without installing anything.
 ## Status
 
 - [x] Repo scaffold, TxLINE devnet client (auth flow, snapshots, SSE)
+- [x] **On-chain proof validation verified with a real World Cup result**:
+      Portugal 0–1 Spain (fixture 18202205 → seq 993) proven via
+      `txoracle.validateStat` on devnet — "away win" validates `true`,
+      the false claim "home win" returns `false`
+      (`npx tsx crank/src/stage1-validate.ts`)
 - [ ] Anchor program: create_market / place_bet / lock_market / settle / claim
 - [ ] Merkle-proof settlement (CPI vs in-program verification — CU-measured)
 - [ ] Extension overlay + demo-wallet judge mode

@@ -6,6 +6,33 @@ export interface ProofNode {
   isRightSibling: boolean;
 }
 
+/** Fixture metadata from /api/fixtures/snapshot. */
+export interface Fixture {
+  Ts: number;
+  StartTime: number;
+  Competition: string;
+  CompetitionId: number;
+  FixtureGroupId: number;
+  Participant1Id: number;
+  Participant1: string;
+  Participant2Id: number;
+  Participant2: string;
+  FixtureId: number;
+  [k: string]: unknown;
+}
+
+/** One score update message (historical or stream). */
+export interface ScoreUpdate {
+  FixtureId?: number;
+  Seq?: number;
+  GlobalSeq?: number;
+  Ts?: number;
+  [k: string]: unknown;
+}
+
+/** World Cup 2026 competition id observed in the fixtures feed. */
+export const WORLD_CUP_COMPETITION_ID = 72;
+
 /** Payload of /api/scores/stat-validation — everything settle() needs. */
 export interface StatValidation {
   summary: {
@@ -43,6 +70,40 @@ export class TxlineDataClient {
     });
     if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
     return (await res.json()) as T;
+  }
+
+  /** Latest fixtures snapshot, optionally windowed / filtered by competition. */
+  fixturesSnapshot(params?: { startEpochDay?: number; competitionId?: number }) {
+    const q = new URLSearchParams();
+    if (params?.startEpochDay !== undefined)
+      q.set("startEpochDay", String(params.startEpochDay));
+    if (params?.competitionId !== undefined)
+      q.set("competitionId", String(params.competitionId));
+    const qs = q.toString();
+    return this.get<Fixture[]>(`/api/fixtures/snapshot${qs ? `?${qs}` : ""}`);
+  }
+
+  /**
+   * Full sequence of score updates for one fixture (post-match audit trail).
+   * Note: the endpoint responds in SSE format (`data: {...}` lines), not JSON.
+   */
+  async scoresHistorical(fixtureId: number): Promise<ScoreUpdate[]> {
+    const res = await fetch(
+      `${this.creds.apiOrigin}/api/scores/historical/${fixtureId}`,
+      { headers: this.headers() }
+    );
+    if (!res.ok) throw new Error(`historical ${fixtureId} → ${res.status}`);
+    const text = await res.text();
+    return text
+      .split("\n")
+      .filter((l) => l.startsWith("data:"))
+      .map((l) => JSON.parse(l.slice(5)) as ScoreUpdate);
+  }
+
+  /** Latest odds per market line for a fixture (StablePrice). */
+  oddsSnapshot(fixtureId: number, asOf?: number) {
+    const qs = asOf ? `?asOf=${asOf}` : "";
+    return this.get<unknown[]>(`/api/odds/snapshot/${fixtureId}${qs}`);
   }
 
   /** Current scores snapshot for a fixture. */

@@ -1561,7 +1561,8 @@
             }
           }
         }
-      ]
+      ],
+      "returns": "bool"
     },
     {
       "name": "validate_fixture_batch",
@@ -1606,7 +1607,8 @@
             }
           }
         }
-      ]
+      ],
+      "returns": "bool"
     },
     {
       "name": "validate_odds",
@@ -1666,7 +1668,8 @@
             }
           }
         }
-      ]
+      ],
+      "returns": "bool"
     },
     {
       "name": "validate_stat",
@@ -1754,7 +1757,8 @@
             }
           }
         }
-      ]
+      ],
+      "returns": "bool"
     },
     {
       "name": "withdraw_usdt",
