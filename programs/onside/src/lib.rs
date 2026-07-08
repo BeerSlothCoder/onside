@@ -10,7 +10,8 @@
 //! this cluster. Anyone can call it; nobody can call it wrong.
 
 use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Token, TokenAccount, Transfer};
+use anchor_spl::associated_token::AssociatedToken;
+use anchor_spl::token::{self, Mint, MintTo, Token, TokenAccount, Transfer};
 
 pub mod txoracle;
 use txoracle::{
@@ -123,6 +124,28 @@ pub mod onside {
             amount
         });
         Ok(())
+    }
+
+    /// Devnet judge faucet: mint up to 100 test-USDC per call to the caller.
+    /// The mint authority is the program's `faucet_auth` PDA, so this is
+    /// fully permissionless — no server, no admin. Devnet only by nature
+    /// (the pinned mint exists only there).
+    pub fn faucet(ctx: Context<FaucetMint>, amount: u64) -> Result<()> {
+        require!(amount > 0 && amount <= 100_000_000, OnsideError::FaucetLimit);
+        let bump = [ctx.bumps.faucet_authority];
+        let seeds: &[&[u8]] = &[b"faucet_auth", &bump];
+        token::mint_to(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                MintTo {
+                    mint: ctx.accounts.usdc_mint.to_account_info(),
+                    to: ctx.accounts.user_token.to_account_info(),
+                    authority: ctx.accounts.faucet_authority.to_account_info(),
+                },
+                &[seeds],
+            ),
+            amount,
+        )
     }
 
     /// Lock the market (kickoff / market-specific close). Permissionless:
@@ -454,6 +477,27 @@ pub struct PlaceBet<'info> {
 }
 
 #[derive(Accounts)]
+pub struct FaucetMint<'info> {
+    #[account(mut)]
+    pub user: Signer<'info>,
+    #[account(mut, address = USDC_MINT_DEVNET)]
+    pub usdc_mint: Account<'info, Mint>,
+    #[account(
+        init_if_needed,
+        payer = user,
+        associated_token::mint = usdc_mint,
+        associated_token::authority = user
+    )]
+    pub user_token: Account<'info, TokenAccount>,
+    /// CHECK: PDA mint authority; seeds constraint is the check.
+    #[account(seeds = [b"faucet_auth"], bump)]
+    pub faucet_authority: UncheckedAccount<'info>,
+    pub token_program: Program<'info, Token>,
+    pub associated_token_program: Program<'info, AssociatedToken>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
 pub struct LockMarket<'info> {
     pub cranker: Signer<'info>,
     #[account(mut)]
@@ -573,6 +617,8 @@ pub enum OnsideError {
     FinalityWindowOpen,
     #[msg("Finality window out of allowed bounds")]
     BadFinalityWindow,
+    #[msg("Faucet amount must be 1..=100 tUSDC")]
+    FaucetLimit,
     #[msg("txoracle returned no data")]
     NoReturnData,
     #[msg("return data not from txoracle")]
