@@ -23,3 +23,9 @@ function mount() {
 // YouTube is an SPA — re-check on navigation.
 mount();
 document.addEventListener("yt-navigate-finish", mount);
+
+// Generic SPA guard (ČT / Nova / Tipsport players re-render aggressively):
+// if our container gets removed by a route change, remount it.
+setInterval(() => {
+  if (!document.getElementById(CONTAINER_ID)) mount();
+}, 3000);

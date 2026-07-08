@@ -11,12 +11,18 @@
     "<all_urls>"
   ],
   "host_permissions": [
-    "https://www.youtube.com/*"
+    "https://www.youtube.com/*",
+    "https://*.ceskatelevize.cz/*",
+    "https://*.nova.cz/*",
+    "https://*.tipsport.cz/*"
   ],
   "content_scripts": [
     {
       "matches": [
-        "https://www.youtube.com/watch*"
+        "https://www.youtube.com/watch*",
+        "https://*.ceskatelevize.cz/*",
+        "https://*.nova.cz/*",
+        "https://*.tipsport.cz/*"
       ],
       "js": [
         "content.js"
