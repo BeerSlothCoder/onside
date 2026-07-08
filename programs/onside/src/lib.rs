@@ -22,15 +22,18 @@ use txoracle::{
 // via `anchor keys sync` before first devnet deploy.
 declare_id!("DhFnzPPgyg77EczxLpmfuT2msD1yHzBLjWfz32q9A4B8");
 
-/// Devnet test USDC mint used for all pools (6 decimals).
+/// Onside test USDC mint (devnet, 6 decimals). We control the mint
+/// authority, which powers the judge-mode faucet in the extension.
 pub const USDC_MINT_DEVNET: Pubkey =
-    pubkey!("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+    pubkey!("33WQevmATbd5NPyWpQrWWXRBBYpYdT6F26ZG1wYnb9EX");
 
-/// After the first valid settlement, claims stay locked for this many seconds.
-/// During the window anyone may re-settle with a proof carrying a LATER data
-/// timestamp ("later proof wins") — protecting against settlement on a
-/// mid-match state (e.g. a half-time score posted as final).
-pub const FINALITY_WINDOW_SECS: i64 = 15 * 60;
+/// Bounds for the per-market finality window: after the first valid
+/// settlement, claims stay locked for the market's window. During it anyone
+/// may re-settle with a proof carrying a LATER data timestamp ("later proof
+/// wins") — protecting against settlement on a mid-match state (e.g. a
+/// half-time score posted as final).
+pub const MIN_FINALITY_WINDOW_SECS: i64 = 30;
+pub const MAX_FINALITY_WINDOW_SECS: i64 = 3600;
 
 #[program]
 pub mod onside {
@@ -47,10 +50,16 @@ pub mod onside {
         stat_key2: Option<u32>,
         threshold: i32,
         min_settle_ts: i64,
+        finality_window_secs: i64,
     ) -> Result<()> {
         require!(
             market_kind != MarketKind::MatchResult || stat_key2.is_some(),
             OnsideError::MissingSecondStat
+        );
+        require!(
+            (MIN_FINALITY_WINDOW_SECS..=MAX_FINALITY_WINDOW_SECS)
+                .contains(&finality_window_secs),
+            OnsideError::BadFinalityWindow
         );
         let market = &mut ctx.accounts.market;
         market.authority = ctx.accounts.creator.key();
@@ -60,6 +69,7 @@ pub mod onside {
         market.stat_key2 = stat_key2;
         market.threshold = threshold;
         market.min_settle_ts = min_settle_ts;
+        market.finality_window_secs = finality_window_secs;
         market.state = MarketState::Open;
         market.pools = [0; MAX_SIDES];
         market.outcome = None;
@@ -197,7 +207,7 @@ pub mod onside {
 
         if market.state != MarketState::Settled {
             market.claim_after = now
-                .checked_add(FINALITY_WINDOW_SECS)
+                .checked_add(market.finality_window_secs)
                 .ok_or(OnsideError::Overflow)?;
         }
         market.state = MarketState::Settled;
@@ -313,6 +323,7 @@ pub struct Market {
     pub stat_key2: Option<u32>,
     pub threshold: i32,
     pub min_settle_ts: i64,
+    pub finality_window_secs: i64,
     pub state: MarketState,
     pub pools: [u64; MAX_SIDES],
     pub outcome: Option<u8>,
@@ -324,7 +335,7 @@ pub struct Market {
 
 impl Market {
     pub const SIZE: usize =
-        8 + 32 + 8 + 1 + 4 + 5 + 4 + 8 + 1 + 8 * MAX_SIDES + 2 + 8 + 8 + 32 + 1 + 16;
+        8 + 32 + 8 + 1 + 4 + 5 + 4 + 8 + 8 + 1 + 8 * MAX_SIDES + 2 + 8 + 8 + 32 + 1 + 16;
 
     pub fn side_count(&self) -> usize {
         match self.market_kind {
@@ -560,6 +571,8 @@ pub enum OnsideError {
     ProofRejected,
     #[msg("Claims are locked until the finality window closes")]
     FinalityWindowOpen,
+    #[msg("Finality window out of allowed bounds")]
+    BadFinalityWindow,
     #[msg("txoracle returned no data")]
     NoReturnData,
     #[msg("return data not from txoracle")]

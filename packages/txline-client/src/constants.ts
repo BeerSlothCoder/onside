@@ -59,6 +59,6 @@ export const StatKey = {
 
 /** Devnet test USDC used for Onside pools (public spl-token-faucet mint, 6 decimals). */
 export const DEVNET_USDC_MINT = new PublicKey(
-  "Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"
+  "33WQevmATbd5NPyWpQrWWXRBBYpYdT6F26ZG1wYnb9EX"
 );
 export const USDC_DECIMALS = 6;

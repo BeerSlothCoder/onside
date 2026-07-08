@@ -74,7 +74,12 @@ in the submission for review without installing anything.
       [false "home win" claim rejected on-chain, true "away win" accepted](https://explorer.solana.com/tx/g4443sGxhsK5PEqVvdqKy6cQVPKT9t8vMgkYj1CKoP6NGoTumkttohUYCUyaL19qQwuhb72jHQ1swakWkLobfZT?cluster=devnet).
       Settlement costs ~139k CU (10× headroom). "Later proof wins" finality
       window (15 min) guards against mid-match proofs; claims open after it.
-- [ ] Pool math test suite (bankrun) + bet/claim e2e with devnet USDC
+- [x] **Full money loop verified on devnet** (Mexico 2–3 England): two bettors
+      stake test USDC, market locks, settles by Merkle proof, the winner
+      claims the whole pot pro-rata, the losing claim is rejected on-chain
+      (`npx tsx crank/src/stage2b-e2e.ts`). Per-market finality window
+      (30 s–1 h) with "later proof wins" re-settlement.
+- [ ] Pool math edge-case test suite (bankrun)
 - [ ] Extension overlay + demo-wallet judge mode
 - [ ] Crank automation + viewer + hosted deploy
 - [ ] Demo video + submission
