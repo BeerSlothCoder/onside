@@ -11,6 +11,73 @@ import {
 } from "../chain/onside";
 import { loadWallet, onWalletChange } from "../chain/wallet";
 import { MatchView } from "./MatchView";
+import lineupsRaw from "../chain/lineups.json";
+
+type Lineup = { n: string; name: string }[];
+const LINEUPS = lineupsRaw as Record<string, { home: Lineup; away: Lineup }>;
+
+function shortName(full: string): string {
+  return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
+}
+
+function PlayerRail(props: {
+  team: string;
+  players: Lineup;
+  side: "left" | "right";
+  panelWidth: number;
+  onTap: (p: { n: string; name: string }) => void;
+}) {
+  const pos: React.CSSProperties =
+    props.side === "left"
+      ? { left: 12 }
+      : { right: props.panelWidth + 40 };
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: "16vh",
+        ...pos,
+        width: 128,
+        pointerEvents: "auto",
+        background: "rgba(10,16,22,0.88)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        borderRadius: 12,
+        padding: 8,
+        zIndex: 2147483646,
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
+      <div style={{ fontSize: 10, fontWeight: 800, color: "#8aa0af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, textAlign: "center" }}>
+        {props.team}
+      </div>
+      {(props.players.length ? props.players : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: `Player ${i + 1}` }))).map((p, i) => (
+        <button
+          key={i}
+          onClick={() => props.onTap(p)}
+          style={{
+            display: "block",
+            width: "100%",
+            marginBottom: 4,
+            border: "1px solid rgba(255,255,255,0.14)",
+            borderRadius: 7,
+            padding: "4px 6px",
+            fontSize: 10.5,
+            fontWeight: 700,
+            background: "rgba(255,255,255,0.06)",
+            color: "#eaf2f7",
+            cursor: "pointer",
+            textAlign: props.side === "left" ? "left" : "right",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {props.side === "left" ? `${p.n} · ${shortName(p.name)}` : `${shortName(p.name)} · ${p.n}`}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const C = {
   bg: "rgba(10,16,22,0.95)",
@@ -127,8 +194,28 @@ export function Overlay() {
   }
 
   const active = matches.find((g) => g.fixtureId === activeFixture);
+  const activeLineups = active ? LINEUPS[String(active.fixtureId)] : undefined;
 
   return (
+    <>
+    {active && open && (
+      <>
+        <PlayerRail
+          team={active.home}
+          players={activeLineups?.home ?? []}
+          side="left"
+          panelWidth={520}
+          onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+        />
+        <PlayerRail
+          team={active.away}
+          players={activeLineups?.away ?? []}
+          side="right"
+          panelWidth={520}
+          onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+        />
+      </>
+    )}
     <div
       style={{
         pointerEvents: "auto",
@@ -256,5 +343,6 @@ export function Overlay() {
         </div>
       )}
     </div>
+    </>
   );
 }
