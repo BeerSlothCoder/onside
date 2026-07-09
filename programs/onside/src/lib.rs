@@ -106,6 +106,12 @@ pub mod onside {
         )?;
 
         let bet = &mut ctx.accounts.bet;
+        // A wallet keeps one position per market: top-ups must stay on the
+        // same side (otherwise side would flip while amounts accumulate).
+        require!(
+            bet.amount == 0 || bet.side == side,
+            OnsideError::SideMismatch
+        );
         bet.market = market.key();
         bet.bettor = ctx.accounts.bettor.key();
         bet.side = side;
@@ -619,6 +625,8 @@ pub enum OnsideError {
     BadFinalityWindow,
     #[msg("Faucet amount must be 1..=100 tUSDC")]
     FaucetLimit,
+    #[msg("Existing bet is on a different side — one side per wallet per market")]
+    SideMismatch,
     #[msg("txoracle returned no data")]
     NoReturnData,
     #[msg("return data not from txoracle")]

@@ -149,7 +149,28 @@ export function credentialsFromEnv(env: {
   };
 }
 
-/** Convenience: connection for a network. */
+/**
+ * Convenience: connection for a network, honouring SOLANA_RPC_URL when set
+ * and retrying transient fetch failures (flaky routes to public RPCs).
+ */
 export function connectionFor(network: TxlineNetwork): Connection {
-  return new Connection(TXLINE_CONFIG[network].rpcUrl, "confirmed");
+  const url =
+    (typeof process !== "undefined" && process.env?.SOLANA_RPC_URL) ||
+    TXLINE_CONFIG[network].rpcUrl;
+  const retryingFetch: typeof fetch = async (input, init) => {
+    let lastErr: unknown;
+    for (let i = 0; i < 4; i++) {
+      try {
+        return await fetch(input, init);
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      }
+    }
+    throw lastErr;
+  };
+  return new Connection(url, {
+    commitment: "confirmed",
+    fetch: retryingFetch as never,
+  });
 }
