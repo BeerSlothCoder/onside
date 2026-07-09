@@ -6,30 +6,32 @@ import {
   claim,
   fetchMarkets,
   fetchMyBets,
-  impliedOdds,
   MarketView,
   placeBet,
 } from "../chain/onside";
 import { loadWallet, onWalletChange } from "../chain/wallet";
+import { MatchView } from "./MatchView";
 
 const C = {
-  bg: "rgba(10,16,22,0.94)",
+  bg: "rgba(10,16,22,0.95)",
   stroke: "rgba(255,255,255,0.14)",
   cyan: "#22d3ee",
   green: "#34d399",
-  red: "#f87171",
   dim: "#8aa0af",
   ink: "#eaf2f7",
 };
 
-const btn: React.CSSProperties = {
-  border: "none",
-  borderRadius: 8,
-  padding: "7px 10px",
-  fontWeight: 700,
-  fontSize: 12,
-  cursor: "pointer",
-};
+/** Stale dev accounts from pre-release program layouts decode to garbage. */
+const SANE_POOL_LIMIT = 100_000;
+
+interface MatchGroup {
+  fixtureId: number;
+  home: string;
+  away: string;
+  start: number;
+  markets: MarketView[];
+  state: string;
+}
 
 export function Overlay() {
   const [open, setOpen] = useState(true);
@@ -37,8 +39,7 @@ export function Overlay() {
   const [bal, setBal] = useState<{ sol: number; usdc: number } | null>(null);
   const [markets, setMarkets] = useState<MarketView[]>([]);
   const [bets, setBets] = useState<BetView[]>([]);
-  const [selected, setSelected] = useState<{ m: MarketView; side: number } | null>(null);
-  const [stake, setStake] = useState(5);
+  const [activeFixture, setActiveFixture] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -51,7 +52,7 @@ export function Overlay() {
     try {
       const w = await loadWallet();
       setWallet(w);
-      const ms = await fetchMarkets();
+      const ms = (await fetchMarkets()).filter((m) => m.totalPool < SANE_POOL_LIMIT);
       setMarkets(ms);
       if (w) {
         setBal(await balances(w.publicKey));
@@ -64,7 +65,7 @@ export function Overlay() {
 
   useEffect(() => {
     refresh();
-    const t = setInterval(refresh, 15_000);
+    const t = setInterval(refresh, 20_000);
     onWalletChange(refresh);
     return () => clearInterval(t);
   }, [refresh]);
@@ -75,16 +76,37 @@ export function Overlay() {
     return map;
   }, [bets]);
 
-  async function submitBet() {
-    if (!wallet || !selected) return;
+  const matches = useMemo<MatchGroup[]>(() => {
+    const groups = new Map<number, MatchGroup>();
+    for (const m of markets) {
+      const g = groups.get(m.fixtureId) ?? {
+        fixtureId: m.fixtureId,
+        home: m.fixture?.home ?? `Fixture #${m.fixtureId}`,
+        away: m.fixture?.away ?? "",
+        start: m.fixture?.start ?? 0,
+        markets: [],
+        state: "settled",
+      };
+      g.markets.push(m);
+      if (m.state === "open") g.state = "open";
+      else if (m.state === "locked" && g.state !== "open") g.state = "locked";
+      groups.set(m.fixtureId, g);
+    }
+    return [...groups.values()].sort((a, b) => {
+      const rank = (s: string) => (s === "open" ? 0 : s === "locked" ? 1 : 2);
+      return rank(a.state) - rank(b.state) || a.start - b.start;
+    });
+  }, [markets]);
+
+  async function submitBet(m: MarketView, side: number, stake: number) {
+    if (!wallet) return;
     setBusy("bet");
     try {
-      await placeBet(wallet, selected.m, selected.side, stake);
-      flash(`Bet locked: $${stake} on ${selected.m.sideLabels[selected.side]}`);
-      setSelected(null);
+      await placeBet(wallet, m, side, stake);
+      flash(`Bet locked: $${stake} on ${m.sideLabels[side]}`);
       await refresh();
     } catch (e: any) {
-      flash(`Bet failed: ${(e.message ?? e).slice(0, 60)}`);
+      flash(`Bet failed: ${(e.error?.errorMessage ?? e.message ?? e).slice(0, 60)}`);
     } finally {
       setBusy(null);
     }
@@ -104,13 +126,15 @@ export function Overlay() {
     }
   }
 
+  const active = matches.find((g) => g.fixtureId === activeFixture);
+
   return (
     <div
       style={{
         pointerEvents: "auto",
         margin: 16,
-        width: 320,
-        maxHeight: "80vh",
+        width: active ? 520 : 320,
+        maxHeight: "84vh",
         display: "flex",
         flexDirection: "column",
         fontFamily: "system-ui, sans-serif",
@@ -121,6 +145,7 @@ export function Overlay() {
         boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
         overflow: "hidden",
         fontSize: 13,
+        transition: "width .2s ease",
       }}
     >
       {/* header */}
@@ -151,148 +176,64 @@ export function Overlay() {
       {open && (
         <div style={{ overflowY: "auto", padding: 12 }}>
           {!wallet && (
-            <div style={{ color: C.dim, lineHeight: 1.5 }}>
+            <div style={{ color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>
               No demo wallet yet — click the <b style={{ color: C.ink }}>Onside icon</b> in
-              your toolbar and create one (takes ~30 s, free devnet funds included).
+              your toolbar and create one (free devnet funds included).
             </div>
           )}
 
-          {wallet && markets.length === 0 && (
-            <div style={{ color: C.dim }}>No markets published yet — check back at kickoff.</div>
-          )}
-
-          {markets.map((m) => {
-            const myBet = betByMarket.get(m.address.toBase58());
-            const title = m.fixture
-              ? `${m.fixture.home} vs ${m.fixture.away}`
-              : `Fixture #${m.fixtureId}`;
-            const now = Date.now() / 1000;
-            const claimable =
-              m.state === "settled" &&
-              myBet &&
-              !myBet.claimed &&
-              myBet.side === m.outcome &&
-              now >= m.claimAfter;
-            return (
-              <div
-                key={m.address.toBase58()}
-                style={{
-                  border: `1px solid ${C.stroke}`,
-                  borderRadius: 10,
-                  padding: 10,
-                  marginBottom: 10,
-                  background: "rgba(255,255,255,0.03)",
-                }}
-              >
-                <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                  <b style={{ fontSize: 13 }}>{title}</b>
-                  <span style={{ marginLeft: "auto", fontSize: 10, color: C.dim, textTransform: "uppercase" }}>
-                    {m.state}
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: C.dim, margin: "2px 0 8px" }}>
-                  {m.kindLabel}
-                  {m.kind === "statOver" ? ` ${m.threshold}.5` : ""} · pool ${m.totalPool.toFixed(2)}
-                </div>
-
-                {/* sides */}
-                <div style={{ display: "flex", gap: 6 }}>
-                  {m.sideLabels.map((label, i) => {
-                    const odds = impliedOdds(m, i);
-                    const isOutcome = m.state === "settled" && m.outcome === i;
-                    const sel = selected?.m.address.equals(m.address) && selected.side === i;
-                    return (
-                      <button
-                        key={i}
-                        disabled={m.state !== "open" || !wallet}
-                        onClick={() => setSelected(sel ? null : { m, side: i })}
-                        style={{
-                          ...btn,
-                          flex: 1,
-                          background: sel
-                            ? C.cyan
-                            : isOutcome
-                              ? "rgba(52,211,153,0.2)"
-                              : "rgba(255,255,255,0.06)",
-                          color: sel ? "#04222a" : isOutcome ? C.green : C.ink,
-                          border: `1px solid ${sel ? C.cyan : C.stroke}`,
-                          opacity: m.state !== "open" && !isOutcome ? 0.55 : 1,
-                        }}
-                      >
-                        <div>{label}</div>
-                        <div style={{ fontSize: 10, opacity: 0.8 }}>
-                          ${m.pools[i]?.toFixed(2) ?? "0.00"}
-                          {odds ? ` · ${odds.toFixed(2)}x` : ""}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* bet slip */}
-                {selected?.m.address.equals(m.address) && m.state === "open" && (
-                  <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center" }}>
-                    {[1, 5, 10, 25].map((v) => (
-                      <button
-                        key={v}
-                        onClick={() => setStake(v)}
-                        style={{
-                          ...btn,
-                          padding: "5px 8px",
-                          background: stake === v ? C.cyan : "rgba(255,255,255,0.06)",
-                          color: stake === v ? "#04222a" : C.ink,
-                        }}
-                      >
-                        ${v}
-                      </button>
-                    ))}
-                    <button
-                      onClick={submitBet}
-                      disabled={busy === "bet"}
-                      style={{ ...btn, marginLeft: "auto", background: C.green, color: "#022" }}
-                    >
-                      {busy === "bet" ? "…" : "PLACE BET"}
-                    </button>
-                  </div>
-                )}
-
-                {/* my bet status */}
-                {myBet && (
-                  <div style={{ marginTop: 8, fontSize: 11.5, display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ color: C.dim }}>
-                      Your bet: ${myBet.amount.toFixed(2)} on {m.sideLabels[myBet.side]}
-                    </span>
-                    {m.state === "settled" && (
-                      <span style={{ color: myBet.side === m.outcome ? C.green : C.red, fontWeight: 700 }}>
-                        {myBet.claimed ? "PAID" : myBet.side === m.outcome ? "WON" : "LOST"}
+          {active ? (
+            <MatchView
+              fixtureId={active.fixtureId}
+              title={{ home: active.home, away: active.away }}
+              markets={active.markets}
+              bets={betByMarket}
+              wallet={wallet}
+              busy={busy}
+              onBet={submitBet}
+              onClaim={submitClaim}
+              onBack={() => setActiveFixture(null)}
+            />
+          ) : (
+            <>
+              {matches.length === 0 && (
+                <div style={{ color: C.dim }}>No markets published yet — check back soon.</div>
+              )}
+              {matches.map((g) => {
+                const myCount = g.markets.filter((m) => betByMarket.has(m.address.toBase58())).length;
+                const pool = g.markets.reduce((a, m) => a + m.totalPool, 0);
+                return (
+                  <div
+                    key={g.fixtureId}
+                    onClick={() => setActiveFixture(g.fixtureId)}
+                    style={{
+                      border: `1px solid ${C.stroke}`,
+                      borderRadius: 10,
+                      padding: "10px 12px",
+                      marginBottom: 8,
+                      background: "rgba(255,255,255,0.03)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
+                      <b>{g.home} vs {g.away}</b>
+                      <span style={{ marginLeft: "auto", fontSize: 10, color: g.state === "open" ? C.green : C.dim, textTransform: "uppercase", fontWeight: 700 }}>
+                        {g.state}
                       </span>
-                    )}
-                    {claimable && (
-                      <button
-                        onClick={() => submitClaim(m)}
-                        disabled={busy === m.address.toBase58()}
-                        style={{ ...btn, marginLeft: "auto", background: C.green, color: "#022", padding: "4px 10px" }}
-                      >
-                        {busy === m.address.toBase58() ? "…" : "CLAIM"}
-                      </button>
-                    )}
-                    {m.state === "settled" &&
-                      myBet.side === m.outcome &&
-                      !myBet.claimed &&
-                      now < m.claimAfter && (
-                        <span style={{ color: C.dim, marginLeft: "auto", fontSize: 10 }}>
-                          claim opens {new Date(m.claimAfter * 1000).toLocaleTimeString()}
-                        </span>
-                      )}
+                    </div>
+                    <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>
+                      {g.start ? new Date(g.start).toLocaleString() + " · " : ""}
+                      {g.markets.length} markets · pool ${pool.toFixed(0)}
+                      {myCount > 0 && <span style={{ color: C.cyan }}> · {myCount} bet{myCount > 1 ? "s" : ""}</span>}
+                    </div>
                   </div>
-                )}
+                );
+              })}
+              <div style={{ fontSize: 10, color: C.dim, textAlign: "center", marginTop: 6 }}>
+                tap a match for the full board · settled by TxLINE Merkle proofs
               </div>
-            );
-          })}
-
-          <div style={{ fontSize: 10, color: C.dim, textAlign: "center", marginTop: 4 }}>
-            settled trustlessly by TxLINE Merkle proofs on Solana
-          </div>
+            </>
+          )}
         </div>
       )}
 

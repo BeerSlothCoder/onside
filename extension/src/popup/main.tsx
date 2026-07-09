@@ -73,18 +73,25 @@ function Popup() {
                 "create",
                 async () => {
                   const w = await createWallet();
-                  await airdropSol(w.publicKey).catch(() => {
+                  // devnet airdrop is flaky — retry, then degrade gracefully
+                  let funded = false;
+                  for (let i = 0; i < 3 && !funded; i++) {
+                    funded = await airdropSol(w.publicKey)
+                      .then(() => true)
+                      .catch(() => new Promise<boolean>((r) => setTimeout(() => r(false), 2500)));
+                  }
+                  if (!funded)
                     throw new Error(
-                      "wallet created, but devnet SOL airdrop is rate-limited — use faucet.solana.com"
+                      "Wallet created ✅ but the devnet SOL faucet is rate-limited right now. " +
+                        "Get free SOL at faucet.solana.com for the address shown, then press GET 100 TEST USDC."
                     );
-                  });
                   await faucet(w, 100);
                 },
                 "Demo wallet ready: 1 SOL + 100 tUSDC ✅ Open a match stream!"
               )
             }
           >
-            {busy === "create" ? "Setting up…" : "CREATE DEMO WALLET"}
+            {busy === "create" ? "Setting up… (~20s)" : "CREATE DEMO WALLET"}
           </button>
         </>
       ) : (
