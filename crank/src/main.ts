@@ -9,7 +9,7 @@
  *
  * Usage: npm run crank -- [fixtureId ...]   (defaults to the QF slate)
  */
-import "dotenv/config";
+import dotenv from "dotenv";
 import * as anchor from "@coral-xyz/anchor";
 import { ComputeBudgetProgram, Keypair, PublicKey } from "@solana/web3.js";
 import { readFileSync } from "node:fs";
@@ -25,6 +25,7 @@ import {
 
 const BN = (anchor as any).BN ?? (anchor as any).default.BN;
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+dotenv.config({ path: resolve(REPO_ROOT, ".env") });
 const POLL_MS = 30_000;
 const DEFAULT_FIXTURES = [18209181, 18218149, 18213979, 18222446];
 
