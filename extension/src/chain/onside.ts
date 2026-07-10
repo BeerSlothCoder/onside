@@ -259,8 +259,9 @@ export async function airdropSol(owner: PublicKey): Promise<string> {
 
 // ── small utils ─────────────────────────────────────────────────
 function u64le(n: bigint): Buffer {
+  // manual LE write — the browser Buffer polyfill's BigInt method has broken typings
   const b = Buffer.alloc(8);
-  b.writeBigUInt64LE(n);
+  for (let i = 0; i < 8; i++) b[i] = Number((n >> BigInt(8 * i)) & 0xffn);
   return b;
 }
 

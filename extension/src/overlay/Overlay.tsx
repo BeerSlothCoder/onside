@@ -11,6 +11,7 @@ import {
 } from "../chain/onside";
 import { loadWallet, onWalletChange } from "../chain/wallet";
 import { MatchView } from "./MatchView";
+import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -109,6 +110,7 @@ export function Overlay() {
   const [activeFixture, setActiveFixture] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [tracking, setTracking] = useState(false);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -198,6 +200,14 @@ export function Overlay() {
 
   return (
     <>
+    {tracking && (
+      <VideoOverlay
+        lineups={{ home: activeLineups?.home ?? [], away: activeLineups?.away ?? [] }}
+        teams={{ home: active?.home ?? "Home", away: active?.away ?? "Away" }}
+        flash={flash}
+        onClose={() => setTracking(false)}
+      />
+    )}
     {active && open && (
       <>
         <PlayerRail
@@ -257,7 +267,27 @@ export function Overlay() {
             ${bal.usdc.toFixed(2)}
           </span>
         )}
-        <span style={{ marginLeft: bal ? 6 : "auto", fontSize: 12 }}>{open ? "−" : "+"}</span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setTracking(!tracking);
+          }}
+          title="Sticky player chips on the video"
+          style={{
+            marginLeft: bal ? 6 : "auto",
+            border: `1px solid ${tracking ? C.cyan : C.stroke}`,
+            background: tracking ? C.cyan : "transparent",
+            color: tracking ? "#04222a" : C.ink,
+            borderRadius: 7,
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "2px 7px",
+            cursor: "pointer",
+          }}
+        >
+          🎯
+        </button>
+        <span style={{ marginLeft: 6, fontSize: 12 }}>{open ? "−" : "+"}</span>
       </div>
 
       {open && (
