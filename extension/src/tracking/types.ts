@@ -53,3 +53,15 @@ export interface Detection {
   h: number; // box height
   score: number;
 }
+
+/** A detection with a persistent identity across frames. */
+export interface Track {
+  id: number;
+  u: number;
+  v: number;
+  w: number;
+  h: number;
+  score: number;
+  /** true while the player is briefly occluded and we're extrapolating */
+  coasting: boolean;
+}

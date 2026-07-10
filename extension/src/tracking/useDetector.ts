@@ -1,9 +1,10 @@
 // Detection loop hook: runs YOLO on the anchored <video> at ~5–8 Hz,
-// skip-if-busy, and exposes the latest raw detections. The ByteTrack-style
-// tracker (identity + smoothing) layers on top of this next.
+// skip-if-busy, feeds detections through the ByteTrack-lite tracker and
+// exposes tracks with persistent identities.
 import { useEffect, useRef, useState } from "react";
-import type { Detection } from "./types";
+import type { Track } from "./types";
 import { detect, initDetector } from "./detector";
+import { ByteTracker } from "./tracker";
 
 export type DetectorState = "off" | "loading" | "running" | "error";
 
@@ -11,18 +12,20 @@ const MIN_INTERVAL_MS = 130; // ≈7.7 Hz ceiling
 
 export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
   const [state, setState] = useState<DetectorState>("off");
-  const [dets, setDets] = useState<Detection[]>([]);
+  const [tracks, setTracks] = useState<Track[]>([]);
   const [inferMs, setInferMs] = useState(0);
   const errors = useRef(0);
+  const tracker = useRef(new ByteTracker());
 
   useEffect(() => {
     if (!enabled || !video) {
       setState("off");
-      setDets([]);
+      setTracks([]);
       return;
     }
     let stopped = false;
     errors.current = 0;
+    tracker.current.reset();
     setState("loading");
 
     (async () => {
@@ -42,7 +45,7 @@ export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
           if (video.readyState >= 2 && !video.ended) {
             const d = await detect(video);
             if (stopped) break;
-            setDets(d);
+            setTracks(tracker.current.update(d, performance.now()));
             setInferMs(Math.round(performance.now() - t0));
             errors.current = 0;
           }
@@ -63,5 +66,5 @@ export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
     };
   }, [enabled, video]);
 
-  return { state, dets, inferMs };
+  return { state, tracks, inferMs };
 }

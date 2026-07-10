@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { Lineups, ReadbackResult } from "../types";
+import type { Assignment, Lineups, ReadbackResult } from "../types";
 import { anchorRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
 import { useTracking } from "../useTracking";
 import { useDetector } from "../useDetector";
@@ -15,6 +15,10 @@ const C = {
   dim: "#8aa0af",
   ink: "#eaf2f7",
 };
+
+function shortName(full: string): string {
+  return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
+}
 
 function probeBadge(probe: ReadbackResult | null): { label: string; color: string } {
   switch (probe) {
@@ -49,8 +53,10 @@ export function VideoOverlay(props: {
   const [pinMode, setPinMode] = useState(false);
   const [openPinId, setOpenPinId] = useState<number | null>(null);
   const [auto, setAuto] = useState(false);
+  const [trackAssign, setTrackAssign] = useState<Map<number, Assignment>>(new Map());
+  const [openTrackId, setOpenTrackId] = useState<number | null>(null);
   const videoEl = anchor?.kind === "video" ? (anchor.el as HTMLVideoElement) : null;
-  const { state: detState, dets, inferMs } = useDetector(videoEl, auto && probe === "ok");
+  const { state: detState, tracks, inferMs } = useDetector(videoEl, auto && probe === "ok");
   const layerRef = useRef<HTMLDivElement | null>(null);
   const lastRect = useRef<Rect | null>(null);
 
@@ -87,6 +93,7 @@ export function VideoOverlay(props: {
       if (e.key === "Escape") {
         setPinMode(false);
         setOpenPinId(null);
+        setOpenTrackId(null);
       }
     };
     document.addEventListener("keydown", onKey, true);
@@ -98,10 +105,14 @@ export function VideoOverlay(props: {
     for (const p of pins) {
       if (p.assignment && p.id !== openPinId) s.add(`${p.assignment.team}:${p.assignment.n}`);
     }
+    for (const [id, a] of trackAssign) {
+      if (id !== openTrackId) s.add(`${a.team}:${a.n}`);
+    }
     return s;
-  }, [pins, openPinId]);
+  }, [pins, openPinId, trackAssign, openTrackId]);
 
   const openPin = pins.find((p) => p.id === openPinId) ?? null;
+  const openTrack = tracks.find((t) => t.id === openTrackId) ?? null;
   const badge = probeBadge(probe);
 
   const barBtn = (active: boolean): React.CSSProperties => ({
@@ -143,22 +154,76 @@ export function VideoOverlay(props: {
         }}
       >
         {auto &&
-          dets.map((d, i) => (
-            <div
-              key={i}
-              style={{
-                position: "absolute",
-                left: `${d.u * 100}%`,
-                top: `${d.v * 100}%`,
-                width: `${d.w * 100}%`,
-                height: `${d.h * 100}%`,
-                border: "1.5px solid rgba(34,211,238,0.9)",
-                borderRadius: 4,
-                pointerEvents: "none",
-                boxShadow: "0 0 6px rgba(0,0,0,0.35)",
-              }}
-            />
-          ))}
+          tracks.map((t) => {
+            const a = trackAssign.get(t.id) ?? null;
+            const selected = t.id === openTrackId;
+            const color = a ? (a.team === "home" ? C.cyan : "#f0abfc") : "rgba(34,211,238,0.6)";
+            return (
+              <div
+                key={`t${t.id}`}
+                style={{
+                  position: "absolute",
+                  left: `${t.u * 100}%`,
+                  top: `${t.v * 100}%`,
+                  width: `${t.w * 100}%`,
+                  height: `${t.h * 100}%`,
+                  // browser tweens between ~7 Hz tracker updates → smooth ride
+                  transition: "left 150ms linear, top 150ms linear, width 150ms linear, height 150ms linear",
+                  pointerEvents: "none",
+                  opacity: t.coasting ? 0.45 : 1,
+                  zIndex: selected ? 3 : a ? 2 : 1,
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    border: `1.5px solid ${color}`,
+                    borderRadius: 4,
+                    boxShadow: a ? "0 0 8px rgba(0,0,0,0.4)" : "none",
+                  }}
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenTrackId(selected ? null : t.id);
+                    setOpenPinId(null);
+                  }}
+                  style={{
+                    position: "absolute",
+                    left: "50%",
+                    top: 0,
+                    transform: "translate(-50%, -115%)",
+                    pointerEvents: "auto",
+                    cursor: "pointer",
+                    fontFamily: "system-ui, sans-serif",
+                    whiteSpace: "nowrap",
+                    ...(a
+                      ? {
+                          border: `1.5px solid ${color}`,
+                          background: selected ? color : "rgba(6,14,20,0.85)",
+                          color: selected ? "#04222a" : color,
+                          borderRadius: 999,
+                          padding: "2px 8px",
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                        }
+                      : {
+                          width: 15,
+                          height: 15,
+                          borderRadius: 999,
+                          border: `2px solid ${selected ? C.cyan : "rgba(234,242,247,0.85)"}`,
+                          background: selected ? C.cyan : "rgba(6,14,20,0.5)",
+                          padding: 0,
+                        }),
+                  }}
+                  title={a ? `${a.n} · ${a.name}` : "Who is this? Click to assign"}
+                >
+                  {a ? `${a.n} · ${shortName(a.name)}` : ""}
+                </button>
+              </div>
+            );
+          })}
         {pins.map((p) => (
           <PlayerChip
             key={p.id}
@@ -169,7 +234,9 @@ export function VideoOverlay(props: {
         ))}
         {openPin && (
           <AssignPopover
-            pin={openPin}
+            u={openPin.u}
+            v={openPin.v}
+            assignment={openPin.assignment}
             lineups={props.lineups}
             teams={props.teams}
             taken={taken}
@@ -183,6 +250,29 @@ export function VideoOverlay(props: {
               setOpenPinId(null);
             }}
             onClose={() => setOpenPinId(null)}
+          />
+        )}
+        {openTrack && (
+          <AssignPopover
+            u={openTrack.u + openTrack.w / 2}
+            v={openTrack.v + openTrack.h}
+            assignment={trackAssign.get(openTrack.id) ?? null}
+            lineups={props.lineups}
+            teams={props.teams}
+            taken={taken}
+            removeLabel="Unassign"
+            onAssign={(a) => {
+              setTrackAssign(new Map(trackAssign).set(openTrack.id, a));
+              setOpenTrackId(null);
+              props.flash(`${a.n} · ${shortName(a.name)} tagged — the chip follows them now`);
+            }}
+            onRemove={() => {
+              const m = new Map(trackAssign);
+              m.delete(openTrack.id);
+              setTrackAssign(m);
+              setOpenTrackId(null);
+            }}
+            onClose={() => setOpenTrackId(null)}
           />
         )}
         {pinMode && (
@@ -242,7 +332,7 @@ export function VideoOverlay(props: {
                 ? "🤖 loading…"
                 : detState === "error"
                   ? "🤖 failed"
-                  : `🤖 ${dets.length} · ${inferMs}ms`}
+                  : `🤖 ${tracks.length} · ${inferMs}ms`}
           </button>
         )}
         {pins.length > 0 && (

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { Assignment, Lineups, Pin, Team } from "../types";
+import type { Assignment, Lineups, Team } from "../types";
 
 const C = {
   bg: "rgba(10,16,22,0.97)",
@@ -21,21 +21,25 @@ const PLACEHOLDER_XI = Array.from({ length: 11 }, (_, i) => ({
 }));
 
 /**
- * Popover attached to a chip. Two views:
- *  - unassigned pin → home/away lineup picker
- *  - assigned pin   → player card with reassign / remove
+ * Popover anchored at a normalized position (works for pins AND tracked
+ * players). Two views:
+ *  - unassigned → home/away lineup picker
+ *  - assigned   → player card with reassign / remove
  */
 export function AssignPopover(props: {
-  pin: Pin;
+  u: number;
+  v: number;
+  assignment: Assignment | null;
   lineups: Lineups;
   teams: { home: string; away: string };
-  taken: Set<string>; // "team:n" pairs already assigned to other pins
+  taken: Set<string>; // "team:n" pairs already assigned elsewhere
+  removeLabel?: string;
   onAssign: (a: Assignment) => void;
   onRemove: () => void;
   onClose: () => void;
 }) {
-  const [picking, setPicking] = useState(!props.pin.assignment);
-  const a = props.pin.assignment;
+  const [picking, setPicking] = useState(!props.assignment);
+  const a = props.assignment;
 
   const column = (team: Team) => {
     const players = props.lineups[team].length ? props.lineups[team] : PLACEHOLDER_XI;
@@ -107,8 +111,8 @@ export function AssignPopover(props: {
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
-        left: `${Math.min(Math.max(props.pin.u * 100, 12), 88)}%`,
-        top: `${props.pin.v * 100}%`,
+        left: `${Math.min(Math.max(props.u * 100, 12), 88)}%`,
+        top: `${Math.min(props.v * 100, 90)}%`,
         transform: "translate(-50%, 12px)",
         width: 280,
         maxHeight: 300,
@@ -134,7 +138,7 @@ export function AssignPopover(props: {
             {column("away")}
           </div>
           <button onClick={props.onRemove} style={{ ...btn, marginTop: 8, color: C.red, width: "100%" }}>
-            Remove pin
+            {props.removeLabel ?? "Remove pin"}
           </button>
         </>
       ) : (
@@ -161,7 +165,7 @@ export function AssignPopover(props: {
               Reassign
             </button>
             <button onClick={props.onRemove} style={{ ...btn, flex: 1, color: C.red }}>
-              Remove pin
+              {props.removeLabel ?? "Remove pin"}
             </button>
           </div>
         </>
