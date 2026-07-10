@@ -28,9 +28,16 @@ export interface Pin {
 
 /**
  * Result of the canvas-readback probe:
- *  ok      — frames are readable → full CV tracking is possible on this stream
- *  black   — frames decode to black (EME/Widevine DRM) → pins only
- *  tainted — cross-origin non-MSE source taints the canvas → pins only
- *  novideo — no playable video found yet
+ *  ok       — frames are readable → full CV tracking is possible on this stream
+ *  black    — frames decode to black (EME/Widevine DRM) → pins only
+ *  tainted  — cross-origin non-MSE source taints the canvas → pins only
+ *  embedded — player lives in a cross-origin iframe we can't see into → pins only
+ *  novideo  — no playable video found yet
  */
-export type ReadbackResult = "ok" | "black" | "tainted" | "novideo";
+export type ReadbackResult = "ok" | "black" | "tainted" | "embedded" | "novideo";
+
+/** What the overlay layer is anchored to. */
+export interface Anchor {
+  el: HTMLVideoElement | HTMLIFrameElement;
+  kind: "video" | "iframe";
+}

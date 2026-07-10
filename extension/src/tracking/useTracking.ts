@@ -1,27 +1,34 @@
 // State owner for the sticky-chips feature: main video, readback probe result,
 // and the manual pin list. The CV engine (detector + tracker) plugs in here later.
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Assignment, Pin, ReadbackResult } from "./types";
+import type { Anchor, Assignment, Pin, ReadbackResult } from "./types";
 import { probeReadback } from "./capture";
-import { watchMainVideo } from "./videoFinder";
+import { watchAnchor } from "./videoFinder";
 
 export function useTracking(active: boolean) {
-  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [probe, setProbe] = useState<ReadbackResult | null>(null);
   const [pins, setPins] = useState<Pin[]>([]);
   const nextId = useRef(1);
 
   useEffect(() => {
     if (!active) {
-      setVideo(null);
+      setAnchor(null);
       setProbe(null);
       return;
     }
-    return watchMainVideo(setVideo);
+    return watchAnchor(setAnchor);
   }, [active]);
 
   useEffect(() => {
-    if (!active || !video) return;
+    if (!active || !anchor) return;
+    if (anchor.kind === "iframe") {
+      // cross-origin player iframe: we can anchor pins to its box but can
+      // never read frames from it — no point probing.
+      setProbe("embedded");
+      return;
+    }
+    const video = anchor.el as HTMLVideoElement;
     let cancelled = false;
     setProbe(null);
     // give a just-swapped video a moment to start decoding
@@ -34,7 +41,7 @@ export function useTracking(active: boolean) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [active, video]);
+  }, [active, anchor]);
 
   const addPin = useCallback((u: number, v: number): number => {
     const id = nextId.current++;
@@ -52,5 +59,5 @@ export function useTracking(active: boolean) {
 
   const clearPins = useCallback(() => setPins([]), []);
 
-  return { video, probe, pins, addPin, assignPin, removePin, clearPins };
+  return { anchor, probe, pins, addPin, assignPin, removePin, clearPins };
 }

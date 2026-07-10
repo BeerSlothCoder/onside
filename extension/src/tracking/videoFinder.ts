@@ -1,5 +1,8 @@
 // Locate the page's main <video> (the stream) and notice when it changes —
 // stream sites swap player elements on route changes and quality switches.
+// Some sites (Nova) embed the player in a cross-origin iframe: we can't reach
+// the video inside it, but we can still anchor pins to the iframe's box.
+import type { Anchor } from "./types";
 
 export function findMainVideo(): HTMLVideoElement | null {
   let best: HTMLVideoElement | null = null;
@@ -19,14 +22,37 @@ export function findMainVideo(): HTMLVideoElement | null {
   return best;
 }
 
-/** Poll for the main video; fires cb whenever it changes. Returns a stop function. */
-export function watchMainVideo(cb: (video: HTMLVideoElement | null) => void): () => void {
-  let current: HTMLVideoElement | null = null;
+function findMainIframe(): HTMLIFrameElement | null {
+  let best: HTMLIFrameElement | null = null;
+  let bestArea = 0;
+  for (const f of Array.from(document.querySelectorAll("iframe"))) {
+    const r = f.getBoundingClientRect();
+    const area = r.width * r.height;
+    if (area < 320 * 180) continue; // ignore ads / widgets
+    if (area > bestArea) {
+      bestArea = area;
+      best = f;
+    }
+  }
+  return best;
+}
+
+export function findAnchor(): Anchor | null {
+  const v = findMainVideo();
+  if (v) return { el: v, kind: "video" };
+  const f = findMainIframe();
+  if (f) return { el: f, kind: "iframe" };
+  return null;
+}
+
+/** Poll for the anchor element; fires cb whenever it changes. Returns a stop function. */
+export function watchAnchor(cb: (anchor: Anchor | null) => void): () => void {
+  let current: Anchor["el"] | null = null;
   const check = () => {
-    const v = findMainVideo();
-    if (v !== current) {
-      current = v;
-      cb(v);
+    const a = findAnchor();
+    if ((a?.el ?? null) !== current) {
+      current = a?.el ?? null;
+      cb(a);
     }
   };
   check();

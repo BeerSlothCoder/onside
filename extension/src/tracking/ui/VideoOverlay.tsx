@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Lineups, ReadbackResult } from "../types";
-import { contentRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
+import { anchorRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
 import { useTracking } from "../useTracking";
 import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
@@ -23,6 +23,8 @@ function probeBadge(probe: ReadbackResult | null): { label: string; color: strin
       return { label: "DRM stream — pins only", color: C.amber };
     case "tainted":
       return { label: "protected stream — pins only", color: C.amber };
+    case "embedded":
+      return { label: "embedded player — pins only", color: C.amber };
     case "novideo":
       return { label: "waiting for video…", color: C.dim };
     default:
@@ -42,7 +44,7 @@ export function VideoOverlay(props: {
   flash: (msg: string) => void;
   onClose: () => void;
 }) {
-  const { video, probe, pins, addPin, assignPin, removePin, clearPins } = useTracking(true);
+  const { anchor, probe, pins, addPin, assignPin, removePin, clearPins } = useTracking(true);
   const [pinMode, setPinMode] = useState(false);
   const [openPinId, setOpenPinId] = useState<number | null>(null);
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -50,12 +52,12 @@ export function VideoOverlay(props: {
 
   // rAF geometry sync — cheap (one getBoundingClientRect per frame).
   useEffect(() => {
-    if (!video) return;
+    if (!anchor) return;
     let raf = 0;
     const loop = () => {
       const el = layerRef.current;
       if (el) {
-        const r = contentRect(video);
+        const r = anchorRect(anchor);
         if (rectsDiffer(lastRect.current, r)) {
           lastRect.current = r;
           if (r) {
@@ -73,7 +75,7 @@ export function VideoOverlay(props: {
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [video]);
+  }, [anchor]);
 
   // Escape exits pin mode / closes the popover.
   useEffect(() => {

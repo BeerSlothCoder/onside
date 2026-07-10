@@ -2,11 +2,21 @@
 // element box (letterboxing), and mapping between normalized video-content
 // coordinates (0..1) and viewport pixels.
 
+import type { Anchor } from "./types";
+
 export interface Rect {
   left: number;
   top: number;
   width: number;
   height: number;
+}
+
+/** Layer rect for whatever we're anchored to: letterbox-aware for <video>, plain box for iframes. */
+export function anchorRect(anchor: Anchor): Rect | null {
+  if (anchor.kind === "video") return contentRect(anchor.el as HTMLVideoElement);
+  const box = anchor.el.getBoundingClientRect();
+  if (box.width < 2 || box.height < 2) return null;
+  return { left: box.left, top: box.top, width: box.width, height: box.height };
 }
 
 /**
