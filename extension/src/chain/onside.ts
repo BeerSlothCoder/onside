@@ -87,8 +87,12 @@ function decodeMarket(address: PublicKey, data: Buffer): MarketView {
   const stateIdx = data.readUInt8(o); o += 1;
   const pools: number[] = [];
   for (let i = 0; i < 3; i++) { pools.push(Number(data.readBigUInt64LE(o)) / 1e6); o += 8; }
+  // borsh Option<u8>: 1-byte tag, value byte present ONLY when Some —
+  // skipping it unconditionally shifted every later field (incl. vault)
+  // by one byte on open/locked markets and broke place_bet.
   const hasOutcome = data.readUInt8(o); o += 1;
-  const outcome = hasOutcome ? data.readUInt8(o) : null; o += 1;
+  const outcome = hasOutcome ? data.readUInt8(o) : null;
+  o += hasOutcome ? 1 : 0;
   o += 8; // settled_data_ts
   const claimAfter = Number(data.readBigInt64LE(o)); o += 8;
   const vault = new PublicKey(data.slice(o, o + 32)); o += 32;
