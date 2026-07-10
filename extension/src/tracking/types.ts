@@ -41,3 +41,15 @@ export interface Anchor {
   el: HTMLVideoElement | HTMLIFrameElement;
   kind: "video" | "iframe";
 }
+
+/**
+ * One detected person, in NORMALIZED video-content coordinates (0..1),
+ * so rendering matches the pin/chip coordinate system directly.
+ */
+export interface Detection {
+  u: number; // box left
+  v: number; // box top
+  w: number; // box width
+  h: number; // box height
+  score: number;
+}

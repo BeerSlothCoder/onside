@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import type { Lineups, ReadbackResult } from "../types";
 import { anchorRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
 import { useTracking } from "../useTracking";
+import { useDetector } from "../useDetector";
 import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
 
@@ -47,6 +48,9 @@ export function VideoOverlay(props: {
   const { anchor, probe, pins, addPin, assignPin, removePin, clearPins } = useTracking(true);
   const [pinMode, setPinMode] = useState(false);
   const [openPinId, setOpenPinId] = useState<number | null>(null);
+  const [auto, setAuto] = useState(false);
+  const videoEl = anchor?.kind === "video" ? (anchor.el as HTMLVideoElement) : null;
+  const { state: detState, dets, inferMs } = useDetector(videoEl, auto && probe === "ok");
   const layerRef = useRef<HTMLDivElement | null>(null);
   const lastRect = useRef<Rect | null>(null);
 
@@ -138,6 +142,23 @@ export function VideoOverlay(props: {
           outlineOffset: -2,
         }}
       >
+        {auto &&
+          dets.map((d, i) => (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: `${d.u * 100}%`,
+                top: `${d.v * 100}%`,
+                width: `${d.w * 100}%`,
+                height: `${d.h * 100}%`,
+                border: "1.5px solid rgba(34,211,238,0.9)",
+                borderRadius: 4,
+                pointerEvents: "none",
+                boxShadow: "0 0 6px rgba(0,0,0,0.35)",
+              }}
+            />
+          ))}
         {pins.map((p) => (
           <PlayerChip
             key={p.id}
@@ -213,6 +234,17 @@ export function VideoOverlay(props: {
         <button style={barBtn(pinMode)} onClick={() => setPinMode(!pinMode)}>
           📌 Pin player
         </button>
+        {probe === "ok" && (
+          <button style={barBtn(auto)} onClick={() => setAuto(!auto)} title="Detect players with in-browser YOLO (beta)">
+            {!auto
+              ? "🤖 Auto"
+              : detState === "loading"
+                ? "🤖 loading…"
+                : detState === "error"
+                  ? "🤖 failed"
+                  : `🤖 ${dets.length} · ${inferMs}ms`}
+          </button>
+        )}
         {pins.length > 0 && (
           <button style={barBtn(false)} onClick={clearPins}>
             Clear ({pins.length})

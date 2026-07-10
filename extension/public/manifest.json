@@ -31,6 +31,19 @@
       "all_frames": true
     }
   ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "models/*"
+      ],
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://*.ceskatelevize.cz/*",
+        "https://*.nova.cz/*",
+        "https://*.tipsport.cz/*"
+      ]
+    }
+  ],
   "background": {
     "service_worker": "background.js",
     "type": "module"
