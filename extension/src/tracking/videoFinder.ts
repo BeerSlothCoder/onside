@@ -24,13 +24,19 @@ export function findMainVideo(): HTMLVideoElement | null {
 
 function findMainIframe(): HTMLIFrameElement | null {
   let best: HTMLIFrameElement | null = null;
-  let bestArea = 0;
+  let bestScore = 0;
   for (const f of Array.from(document.querySelectorAll("iframe"))) {
     const r = f.getBoundingClientRect();
     const area = r.width * r.height;
     if (area < 320 * 180) continue; // ignore ads / widgets
-    if (area > bestArea) {
-      bestArea = area;
+    // page-sized containers (consent walls, ad wrappers) are not the player
+    if (r.width > innerWidth * 0.95 && r.height > innerHeight * 0.9) continue;
+    let score = area;
+    const ratio = r.width / Math.max(r.height, 1);
+    if (ratio > 1.3 && ratio < 2.2) score *= 3; // video-shaped
+    if (/player|embed|media|video|stream|live/i.test(f.src)) score *= 3;
+    if (score > bestScore) {
+      bestScore = score;
       best = f;
     }
   }

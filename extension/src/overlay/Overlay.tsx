@@ -46,7 +46,7 @@ function PlayerRail(props: {
     <div
       style={{
         position: "fixed",
-        top: "16vh",
+        bottom: 64,
         left: props.x,
         width: 128,
         pointerEvents: "auto",
