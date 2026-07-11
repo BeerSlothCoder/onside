@@ -55,8 +55,22 @@ TxLINE (TxODDS)                                Solana (devnet)
 4. Bet on an open market → watch the match → the market settles with an on-chain
    Merkle proof → claim your payout. Every step is on Solana devnet; total cost: $0.
 
-A hosted read-only viewer (markets + settlement proofs) and a demo video are linked
-in the submission for review without installing anything.
+No install needed at all: the hosted read-only viewer at
+**<https://beerslothcoder.github.io/onside/>** lists every devnet market and lets you
+open any settled market's on-chain Merkle-proof verification (the settle transaction's
+`txoracle` CPI logs) in one click.
+
+### Running the live stack (optional)
+
+```bash
+npm run crank    # market lifecycle: lock at kickoff, settle at FT with TxLINE proofs
+npm run proxy    # localhost:8787 — live scores, StablePrice odds and lineups for the
+                 # overlay & viewer (holds the TxLINE credentials server-side)
+```
+
+The extension and viewer work without the proxy; with it they gain live scores,
+match clock, live corner counts and StablePrice reference odds. Lineups served from
+`crank/fixtures/lineups.json` are hot-reloaded — edit the file, no rebuild.
 
 ## Status
 
@@ -79,9 +93,17 @@ in the submission for review without installing anything.
       claims the whole pot pro-rata, the losing claim is rejected on-chain
       (`npx tsx crank/src/stage2b-e2e.ts`). Per-market finality window
       (30 s–1 h) with "later proof wins" re-settlement.
+- [x] **Extension overlay + demo-wallet judge mode** — markets over the stream on
+      ceskatelevize.cz / tv.nova.cz / tipsport.cz / YouTube, burner-wallet faucet,
+      bet → settle → claim exercised live during the quarter-finals
+- [x] **Sticky clickable players** — in-browser YOLOv8n + ByteTrack-lite tracker
+      (7 Hz, WebGL, no server) pins tappable player chips to the actual players in
+      the video; tap-to-pin fallback on DRM streams
+- [x] **Crank automation + data proxy + viewer deployed** — crank locks/settles
+      unattended; localhost proxy serves live scores + StablePrice odds + lineups;
+      hosted viewer with per-market on-chain proof verification:
+      <https://beerslothcoder.github.io/onside/>
 - [ ] Pool math edge-case test suite (bankrun)
-- [ ] Extension overlay + demo-wallet judge mode
-- [ ] Crank automation + viewer + hosted deploy
 - [ ] Demo video + submission
 
 ## Originality & attribution
