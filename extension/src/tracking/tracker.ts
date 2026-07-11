@@ -98,18 +98,46 @@ export class ByteTracker {
       usedDets.add(d);
     }
 
-    // unmatched tracks: coast briefly, then hold position in the buffer
+    // stage 3: re-capture LOST tracks by center proximity — after ~1 s of
+    // occlusion the coasted prediction rarely overlaps a 3 %-wide box, so
+    // IoU alone would mint a new identity for every returning player.
+    {
+      const lost = this.tracks.filter((t) => !matched.has(t) && t.missed > 0);
+      const freeDets = high.filter((d) => !usedDets.has(d));
+      const pairs: Array<{ t: TState; d: Detection; dist: number }> = [];
+      for (const t of lost) {
+        const p = predict(t, now);
+        const maxDist = Math.max(0.06, 2.5 * t.w);
+        for (const d of freeDets) {
+          const dist = Math.hypot(
+            p.u + p.w / 2 - (d.u + d.w / 2),
+            p.v + p.h / 2 - (d.v + d.h / 2)
+          );
+          if (dist <= maxDist) pairs.push({ t, d, dist });
+        }
+      }
+      pairs.sort((a, b) => a.dist - b.dist);
+      const usedT = new Set<TState>();
+      for (const p of pairs) {
+        if (usedT.has(p.t) || usedDets.has(p.d)) continue;
+        usedT.add(p.t);
+        usedDets.add(p.d);
+        this.applyMatch(p.t, p.d, now);
+        matched.add(p.t);
+      }
+    }
+
+    // unmatched tracks: keep coasting on decaying velocity for the whole
+    // buffer so the prediction stays near a player who kept moving
     for (const t of this.tracks) {
       if (matched.has(t)) continue;
       t.missed += 1;
-      if (t.missed <= RENDER_MISSED) {
-        const dt = Math.min((now - t.lastTs) / 1000, 0.6);
-        t.u += t.vu * dt;
-        t.v += t.vv * dt;
-        t.lastTs = now;
-      }
-      t.vu *= 0.8;
-      t.vv *= 0.8;
+      const dt = Math.min((now - t.lastTs) / 1000, 0.6);
+      t.u += t.vu * dt;
+      t.v += t.vv * dt;
+      t.lastTs = now;
+      t.vu *= 0.95;
+      t.vv *= 0.95;
     }
     this.tracks = this.tracks.filter((t) => t.missed <= MAX_MISSED);
 

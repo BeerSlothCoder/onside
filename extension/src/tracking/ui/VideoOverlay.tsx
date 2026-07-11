@@ -3,6 +3,7 @@ import type { Assignment, Lineups, ReadbackResult } from "../types";
 import { anchorRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
 import { useTracking } from "../useTracking";
 import { useDetector } from "../useDetector";
+import { DebugHud } from "./DebugHud";
 import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
 
@@ -53,6 +54,7 @@ export function VideoOverlay(props: {
   const [pinMode, setPinMode] = useState(false);
   const [openPinId, setOpenPinId] = useState<number | null>(null);
   const [auto, setAuto] = useState(false);
+  const [debug, setDebug] = useState(false);
   const [trackAssign, setTrackAssign] = useState<Map<number, Assignment>>(new Map());
   const [openTrackId, setOpenTrackId] = useState<number | null>(null);
   const videoEl = anchor?.kind === "video" ? (anchor.el as HTMLVideoElement) : null;
@@ -100,16 +102,33 @@ export function VideoOverlay(props: {
     return () => document.removeEventListener("keydown", onKey, true);
   }, []);
 
+  const liveIds = useMemo(() => new Set(tracks.map((t) => t.id)), [tracks]);
+
+  // assignments whose track has died (player left the shot) — offered for re-tag
+  const parked = useMemo(() => {
+    const out: Assignment[] = [];
+    for (const [id, a] of trackAssign) if (!liveIds.has(id)) out.push(a);
+    return out;
+  }, [trackAssign, liveIds]);
+
   const taken = useMemo(() => {
     const s = new Set<string>();
     for (const p of pins) {
       if (p.assignment && p.id !== openPinId) s.add(`${p.assignment.team}:${p.assignment.n}`);
     }
     for (const [id, a] of trackAssign) {
-      if (id !== openTrackId) s.add(`${a.team}:${a.n}`);
+      if (id !== openTrackId && liveIds.has(id)) s.add(`${a.team}:${a.n}`);
     }
     return s;
-  }, [pins, openPinId, trackAssign, openTrackId]);
+  }, [pins, openPinId, trackAssign, openTrackId, liveIds]);
+
+  /** Assigning player X anywhere steals X from any dead track it was tagged to. */
+  const stealOrphans = (m: Map<number, Assignment>, a: Assignment) => {
+    for (const [id, ex] of m) {
+      if (ex.team === a.team && ex.n === a.n && !liveIds.has(id)) m.delete(id);
+    }
+    return m;
+  };
 
   const openPin = pins.find((p) => p.id === openPinId) ?? null;
   const openTrack = tracks.find((t) => t.id === openTrackId) ?? null;
@@ -240,7 +259,9 @@ export function VideoOverlay(props: {
             lineups={props.lineups}
             teams={props.teams}
             taken={taken}
+            parked={parked}
             onAssign={(a) => {
+              setTrackAssign(stealOrphans(new Map(trackAssign), a));
               assignPin(openPin.id, a);
               setOpenPinId(null);
               props.flash(`Pinned ${a.n} · ${a.name.split(",")[0].trim()} — chip sticks to the video`);
@@ -261,8 +282,9 @@ export function VideoOverlay(props: {
             teams={props.teams}
             taken={taken}
             removeLabel="Unassign"
+            parked={parked}
             onAssign={(a) => {
-              setTrackAssign(new Map(trackAssign).set(openTrack.id, a));
+              setTrackAssign(stealOrphans(new Map(trackAssign), a).set(openTrack.id, a));
               setOpenTrackId(null);
               props.flash(`${a.n} · ${shortName(a.name)} tagged — the chip follows them now`);
             }}
@@ -318,7 +340,13 @@ export function VideoOverlay(props: {
           boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
         }}
       >
-        <span style={{ fontSize: 12, fontWeight: 800, color: C.ink }}>
+        <span
+          style={{ fontSize: 12, fontWeight: 800, color: C.ink, cursor: "default", userSelect: "none" }}
+          onClick={(e) => {
+            if (e.shiftKey) setDebug(!debug);
+          }}
+          title="Shift-click for diagnostics"
+        >
           🎯 <span style={{ color: C.cyan }}>track</span>
         </span>
         <button style={barBtn(pinMode)} onClick={() => setPinMode(!pinMode)}>
@@ -351,6 +379,10 @@ export function VideoOverlay(props: {
           ✕
         </button>
       </div>
+
+      {debug && (
+        <DebugHud probe={probe} detState={detState} trackCount={tracks.length} inferMs={inferMs} />
+      )}
     </>
   );
 }

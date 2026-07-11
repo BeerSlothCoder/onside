@@ -1,14 +1,36 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import type { Lineups } from "../types";
 import { VideoOverlay } from "./VideoOverlay";
+
+interface MatchCtx {
+  fixtureId: number;
+  teams: { home: string; away: string };
+  lineups: Lineups | null;
+}
 
 /**
  * Minimal tracker UI for player IFRAMES (e.g. media.cms.nova.cz embeds).
  * Inside the frame we can reach the real <video>, so pins anchor to the
- * picture and the readback probe gives a real verdict. Market data / lineups
- * live in the top frame — this uses placeholder XIs until state is shared.
+ * picture and the readback probe gives a real verdict. The active match
+ * (teams + lineups) is shared by the top-frame panel via extension storage.
  */
 export function FrameTracker() {
   const [on, setOn] = useState(false);
+  const [ctx, setCtx] = useState<MatchCtx | null>(null);
+
+  useEffect(() => {
+    const apply = (v: unknown) => setCtx((v as MatchCtx) ?? null);
+    try {
+      chrome.storage.local.get("onside_match_ctx").then((r) => apply(r.onside_match_ctx));
+      const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+        if (area === "local" && changes.onside_match_ctx) apply(changes.onside_match_ctx.newValue);
+      };
+      chrome.storage.onChanged.addListener(listener);
+      return () => chrome.storage.onChanged.removeListener(listener);
+    } catch {
+      /* orphaned script after extension reload */
+    }
+  }, []);
 
   if (!on) {
     return (
@@ -39,8 +61,8 @@ export function FrameTracker() {
 
   return (
     <VideoOverlay
-      lineups={{ home: [], away: [] }}
-      teams={{ home: "Home", away: "Away" }}
+      lineups={ctx?.lineups ?? { home: [], away: [] }}
+      teams={ctx?.teams ?? { home: "Home", away: "Away" }}
       flash={() => undefined}
       onClose={() => setOn(false)}
     />

@@ -198,6 +198,23 @@ export function Overlay() {
   const active = matches.find((g) => g.fixtureId === activeFixture);
   const activeLineups = active ? LINEUPS[String(active.fixtureId)] : undefined;
 
+  // Share the active match with tracker instances in player iframes
+  // (they can't see this panel's state, but they can read extension storage).
+  useEffect(() => {
+    const ctx = active
+      ? {
+          fixtureId: active.fixtureId,
+          teams: { home: active.home, away: active.away },
+          lineups: activeLineups ?? null,
+        }
+      : null;
+    try {
+      chrome.storage?.local?.set({ onside_match_ctx: ctx });
+    } catch {
+      /* storage unavailable (orphaned script after reload) */
+    }
+  }, [active?.fixtureId, active?.home, active?.away, activeLineups]);
+
   return (
     <>
     {tracking && (

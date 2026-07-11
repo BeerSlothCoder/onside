@@ -33,6 +33,8 @@ export function AssignPopover(props: {
   lineups: Lineups;
   teams: { home: string; away: string };
   taken: Set<string>; // "team:n" pairs already assigned elsewhere
+  /** assignments whose track died (player left the shot) — quick re-tag row */
+  parked?: Assignment[];
   removeLabel?: string;
   onAssign: (a: Assignment) => void;
   onRemove: () => void;
@@ -133,6 +135,28 @@ export function AssignPopover(props: {
           <div style={{ fontSize: 11, color: C.dim, marginBottom: 6 }}>
             Who is this? <span style={{ float: "right", cursor: "pointer" }} onClick={props.onClose}>✕</span>
           </div>
+          {props.parked && props.parked.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 9.5, color: C.dim, marginBottom: 4 }}>Re-tag (lost from view):</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {props.parked.map((p) => (
+                  <button
+                    key={`${p.team}:${p.n}`}
+                    onClick={() => props.onAssign(p)}
+                    style={{
+                      ...btn,
+                      padding: "3px 8px",
+                      fontSize: 10.5,
+                      borderColor: p.team === "home" ? C.cyan : C.pink,
+                      color: p.team === "home" ? C.cyan : C.pink,
+                    }}
+                  >
+                    {p.n} · {shortName(p.name)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", gap: 8 }}>
             {column("home")}
             {column("away")}

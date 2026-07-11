@@ -24,16 +24,6 @@ const sideBtn: React.CSSProperties = {
   textAlign: "center",
 };
 
-const playerBtn: React.CSSProperties = {
-  ...sideBtn,
-  padding: "5px 6px",
-  fontSize: 10.5,
-  opacity: 0.45,
-  cursor: "default",
-  marginBottom: 4,
-  width: "100%",
-};
-
 export interface MatchViewProps {
   fixtureId: number;
   title: { home: string; away: string };
@@ -49,8 +39,9 @@ export interface MatchViewProps {
 /**
  * Expanded match view — goal.live-style layout:
  *   top:    match result (1X2) + total-goals strip
- *   sides:  home XI (left) vs away XI (right) — placeholders until lineups
  *   bottom: corners buttons, home corner left / away corner right
+ * (players live on the screen-edge rails and the 🎯 tracked chips,
+ *  not inside this panel)
  */
 export function MatchView({
   title,
@@ -128,29 +119,6 @@ export function MatchView({
     );
   };
 
-  const xi = (team: string, align: "left" | "right") => (
-    <div style={{ flex: 1 }}>
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 800,
-          color: C.dim,
-          textAlign: align,
-          margin: "0 0 6px",
-          textTransform: "uppercase",
-          letterSpacing: 0.5,
-        }}
-      >
-        {team}
-      </div>
-      {Array.from({ length: 11 }, (_, i) => (
-        <button key={i} style={playerBtn} title="Player markets need player-level on-chain proofs — lineups load before kickoff">
-          {i + 1}. Player {i + 1}
-        </button>
-      ))}
-    </div>
-  );
-
   return (
     <div>
       {/* header */}
@@ -180,25 +148,8 @@ export function MatchView({
         ))}
       </div>
 
-      {/* pitch: players left / right */}
-      <div
-        style={{
-          display: "flex",
-          gap: 14,
-          background: C.pitch,
-          border: `1px solid ${C.stroke}`,
-          borderRadius: 10,
-          padding: 10,
-          margin: "10px 0",
-        }}
-      >
-        {xi(title.home, "left")}
-        <div style={{ width: 1, background: C.stroke }} />
-        {xi(title.away, "right")}
-      </div>
-
       {/* bottom: corners left / right */}
-      <div style={{ display: "flex", gap: 6 }}>
+      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>
             ⚑ {title.home} corners over {homeCorners ? `${homeCorners.threshold}.5` : ""}
