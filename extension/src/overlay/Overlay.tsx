@@ -304,12 +304,12 @@ export function Overlay() {
       // flank the stream: rails hug the video's left/right edges, clamped
       // to the viewport; without a video, mirror symmetrically on the window
       const vw = window.innerWidth;
-      const inset = 12; // rails sit just inside the video edges, broadcast-style
+      // straddle the video edges: rails half-in half-out, clamped on screen
       const homeX = videoRect
-        ? Math.max(8, videoRect.left + inset)
+        ? Math.max(8, videoRect.left - RAIL_W / 2)
         : 12;
       const awayX = videoRect
-        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width - RAIL_W - inset)
+        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width - RAIL_W / 2)
         : vw - RAIL_W - 12;
       return (
         <>
