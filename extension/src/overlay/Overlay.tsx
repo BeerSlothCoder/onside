@@ -31,8 +31,8 @@ function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
 }
 
-/** Rail outer width in px: 128 content + 2×8 padding + 2×1 border. */
-const RAIL_W = 146;
+/** Rail outer width in px: 170 content + 2×10 padding + 2×1 border. */
+const RAIL_W = 192;
 
 function PlayerRail(props: {
   team: string;
@@ -48,17 +48,17 @@ function PlayerRail(props: {
         position: "fixed",
         bottom: 64,
         left: props.x,
-        width: 128,
+        width: 170,
         pointerEvents: "auto",
         background: "rgba(10,16,22,0.88)",
         border: "1px solid rgba(255,255,255,0.14)",
-        borderRadius: 12,
-        padding: 8,
+        borderRadius: 14,
+        padding: 10,
         zIndex: 2147483646,
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <div style={{ fontSize: 10, fontWeight: 800, color: "#8aa0af", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6, textAlign: "center" }}>
+      <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8aa0af", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 7, textAlign: "center" }}>
         {props.team}
       </div>
       {(props.players.length ? props.players : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: `Player ${i + 1}` }))).map((p, i) => (
@@ -68,11 +68,11 @@ function PlayerRail(props: {
           style={{
             display: "block",
             width: "100%",
-            marginBottom: 4,
+            marginBottom: 5,
             border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 7,
-            padding: "4px 6px",
-            fontSize: 10.5,
+            borderRadius: 8,
+            padding: "6px 9px",
+            fontSize: 12.5,
             fontWeight: 700,
             background: "rgba(255,255,255,0.06)",
             color: "#eaf2f7",
@@ -304,12 +304,12 @@ export function Overlay() {
       // flank the stream: rails hug the video's left/right edges, clamped
       // to the viewport; without a video, mirror symmetrically on the window
       const vw = window.innerWidth;
-      const gap = 10;
+      const inset = 12; // rails sit just inside the video edges, broadcast-style
       const homeX = videoRect
-        ? Math.max(8, videoRect.left - RAIL_W - gap)
+        ? Math.max(8, videoRect.left + inset)
         : 12;
       const awayX = videoRect
-        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width + gap)
+        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width - RAIL_W - inset)
         : vw - RAIL_W - 12;
       return (
         <>
