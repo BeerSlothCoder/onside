@@ -20,6 +20,8 @@ import {
 } from "../chain/live";
 import { MatchView } from "./MatchView";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
+import { findAnchor } from "../tracking/videoFinder";
+import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -29,23 +31,23 @@ function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
 }
 
+/** Rail outer width in px: 128 content + 2×8 padding + 2×1 border. */
+const RAIL_W = 146;
+
 function PlayerRail(props: {
   team: string;
   players: Lineup;
   side: "left" | "right";
-  panelWidth: number;
+  /** viewport-px left position (computed from the video rect) */
+  x: number;
   onTap: (p: { n: string; name: string }) => void;
 }) {
-  const pos: React.CSSProperties =
-    props.side === "left"
-      ? { left: 12 }
-      : { right: props.panelWidth + 40 };
   return (
     <div
       style={{
         position: "fixed",
         top: "16vh",
-        ...pos,
+        left: props.x,
         width: 128,
         pointerEvents: "auto",
         background: "rgba(10,16,22,0.88)",
@@ -122,6 +124,23 @@ export function Overlay() {
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
   const [proxyLineups, setProxyLineups] = useState<Record<string, LineupPair>>({});
+  const [videoRect, setVideoRect] = useState<Rect | null>(null);
+
+  // track the stream's box so the player rails flank the video symmetrically
+  useEffect(() => {
+    let last: Rect | null = null;
+    const update = () => {
+      const a = findAnchor();
+      const r = a ? anchorRect(a) : null;
+      if (rectsDiffer(last, r)) {
+        last = r;
+        setVideoRect(r);
+      }
+    };
+    update();
+    const t = setInterval(update, 1500);
+    return () => clearInterval(t);
+  }, []);
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -281,24 +300,36 @@ export function Overlay() {
         onClose={() => setTracking(false)}
       />
     )}
-    {active && open && (
-      <>
-        <PlayerRail
-          team={active.home}
-          players={activeLineups?.home ?? []}
-          side="left"
-          panelWidth={520}
-          onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
-        />
-        <PlayerRail
-          team={active.away}
-          players={activeLineups?.away ?? []}
-          side="right"
-          panelWidth={520}
-          onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
-        />
-      </>
-    )}
+    {active && open && (() => {
+      // flank the stream: rails hug the video's left/right edges, clamped
+      // to the viewport; without a video, mirror symmetrically on the window
+      const vw = window.innerWidth;
+      const gap = 10;
+      const homeX = videoRect
+        ? Math.max(8, videoRect.left - RAIL_W - gap)
+        : 12;
+      const awayX = videoRect
+        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width + gap)
+        : vw - RAIL_W - 12;
+      return (
+        <>
+          <PlayerRail
+            team={active.home}
+            players={activeLineups?.home ?? []}
+            side="left"
+            x={homeX}
+            onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+          />
+          <PlayerRail
+            team={active.away}
+            players={activeLineups?.away ?? []}
+            side="right"
+            x={awayX}
+            onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+          />
+        </>
+      );
+    })()}
     <div
       style={{
         pointerEvents: "auto",
