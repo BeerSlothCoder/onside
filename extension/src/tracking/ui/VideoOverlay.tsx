@@ -57,6 +57,14 @@ export function VideoOverlay(props: {
   const [debug, setDebug] = useState(false);
   const [trackAssign, setTrackAssign] = useState<Map<number, Assignment>>(new Map());
   const [openTrackId, setOpenTrackId] = useState<number | null>(null);
+  // next-scorer pick (demo market): one player at a time, rendered green.
+  // Keyed to the clicked chip, plus the assignment so the pick survives
+  // track death → re-tag.
+  const [scorer, setScorer] = useState<{
+    src: "track" | "pin";
+    id: number;
+    assignment: Assignment | null;
+  } | null>(null);
   const videoEl = anchor?.kind === "video" ? (anchor.el as HTMLVideoElement) : null;
   const { state: detState, tracks, inferMs } = useDetector(videoEl, auto && probe === "ok");
   const layerRef = useRef<HTMLDivElement | null>(null);
@@ -130,6 +138,27 @@ export function VideoOverlay(props: {
     return m;
   };
 
+  const sameAssign = (a: Assignment | null, b: Assignment | null) =>
+    !!a && !!b && a.team === b.team && a.n === b.n;
+  const isScorer = (src: "track" | "pin", id: number, a: Assignment | null) =>
+    !!scorer && ((scorer.src === src && scorer.id === id) || sameAssign(scorer.assignment, a));
+  /** Toggle the next-scorer pick on a chip (replaces any previous pick). */
+  const toggleScorer = (src: "track" | "pin", id: number, a: Assignment | null) => {
+    if (isScorer(src, id, a)) {
+      setScorer(null);
+      props.flash("Next-scorer pick removed");
+    } else {
+      setScorer({ src, id, assignment: a });
+      props.flash(
+        `⚽ Next scorer: ${a ? `${a.n} · ${shortName(a.name)}` : "tagged player"} — demo market, display only`
+      );
+    }
+  };
+  /** Keep the green on the player when their assignment moves to a new chip. */
+  const followScorer = (src: "track" | "pin", id: number, a: Assignment) => {
+    if (scorer && sameAssign(scorer.assignment, a)) setScorer({ src, id, assignment: a });
+  };
+
   const openPin = pins.find((p) => p.id === openPinId) ?? null;
   const openTrack = tracks.find((t) => t.id === openTrackId) ?? null;
   const badge = probeBadge(probe);
@@ -176,7 +205,14 @@ export function VideoOverlay(props: {
           tracks.map((t) => {
             const a = trackAssign.get(t.id) ?? null;
             const selected = t.id === openTrackId;
-            const color = a ? (a.team === "home" ? C.cyan : "#f0abfc") : "rgba(34,211,238,0.6)";
+            const picked = isScorer("track", t.id, a);
+            const color = picked
+              ? C.green
+              : a
+                ? a.team === "home"
+                  ? C.cyan
+                  : "#f0abfc"
+                : "rgba(34,211,238,0.6)";
             return (
               <div
                 key={`t${t.id}`}
@@ -190,16 +226,20 @@ export function VideoOverlay(props: {
                   transition: "left 150ms linear, top 150ms linear, width 150ms linear, height 150ms linear",
                   pointerEvents: "none",
                   opacity: t.coasting ? 0.45 : 1,
-                  zIndex: selected ? 3 : a ? 2 : 1,
+                  zIndex: selected ? 3 : picked ? 3 : a ? 2 : 1,
                 }}
               >
                 <div
                   style={{
                     position: "absolute",
                     inset: 0,
-                    border: `1.5px solid ${color}`,
+                    border: `${picked ? 2.5 : 1.5}px solid ${color}`,
                     borderRadius: 4,
-                    boxShadow: a ? "0 0 8px rgba(0,0,0,0.4)" : "none",
+                    boxShadow: picked
+                      ? "0 0 12px rgba(52,211,153,0.75)"
+                      : a
+                        ? "0 0 8px rgba(0,0,0,0.4)"
+                        : "none",
                   }}
                 />
                 <button
@@ -217,7 +257,7 @@ export function VideoOverlay(props: {
                     cursor: "pointer",
                     fontFamily: "system-ui, sans-serif",
                     whiteSpace: "nowrap",
-                    ...(a
+                    ...(a || picked
                       ? {
                           border: `1.5px solid ${color}`,
                           background: selected ? color : "rgba(6,14,20,0.85)",
@@ -238,7 +278,8 @@ export function VideoOverlay(props: {
                   }}
                   title={a ? `${a.n} · ${a.name}` : "Who is this? Click to assign"}
                 >
-                  {a ? `${a.n} · ${shortName(a.name)}` : ""}
+                  {picked ? "⚽ " : ""}
+                  {a ? `${a.n} · ${shortName(a.name)}` : picked ? "next scorer" : ""}
                 </button>
               </div>
             );
@@ -248,6 +289,7 @@ export function VideoOverlay(props: {
             key={p.id}
             pin={p}
             selected={p.id === openPinId}
+            scorer={isScorer("pin", p.id, p.assignment)}
             onClick={() => setOpenPinId(p.id === openPinId ? null : p.id)}
           />
         ))}
@@ -260,9 +302,15 @@ export function VideoOverlay(props: {
             teams={props.teams}
             taken={taken}
             parked={parked}
+            scorer={isScorer("pin", openPin.id, openPin.assignment)}
+            onScorer={() => {
+              toggleScorer("pin", openPin.id, openPin.assignment);
+              setOpenPinId(null);
+            }}
             onAssign={(a) => {
               setTrackAssign(stealOrphans(new Map(trackAssign), a));
               assignPin(openPin.id, a);
+              followScorer("pin", openPin.id, a);
               setOpenPinId(null);
               props.flash(`Pinned ${a.n} · ${a.name.split(",")[0].trim()} — chip sticks to the video`);
             }}
@@ -283,8 +331,14 @@ export function VideoOverlay(props: {
             taken={taken}
             removeLabel="Unassign"
             parked={parked}
+            scorer={isScorer("track", openTrack.id, trackAssign.get(openTrack.id) ?? null)}
+            onScorer={() => {
+              toggleScorer("track", openTrack.id, trackAssign.get(openTrack.id) ?? null);
+              setOpenTrackId(null);
+            }}
             onAssign={(a) => {
               setTrackAssign(stealOrphans(new Map(trackAssign), a).set(openTrack.id, a));
+              followScorer("track", openTrack.id, a);
               setOpenTrackId(null);
               props.flash(`${a.n} · ${shortName(a.name)} tagged — the chip follows them now`);
             }}
@@ -363,8 +417,29 @@ export function VideoOverlay(props: {
                   : `🤖 ${tracks.length} · ${inferMs}ms`}
           </button>
         )}
+        {scorer && (
+          <span
+            style={{ fontSize: 11, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}
+            title="Next-scorer pick (demo market)"
+          >
+            ⚽ {scorer.assignment ? shortName(scorer.assignment.name) : "next scorer"}
+            <span
+              onClick={() => setScorer(null)}
+              style={{ cursor: "pointer", marginLeft: 5, color: C.dim, fontWeight: 700 }}
+              title="Remove pick"
+            >
+              ✕
+            </span>
+          </span>
+        )}
         {pins.length > 0 && (
-          <button style={barBtn(false)} onClick={clearPins}>
+          <button
+            style={barBtn(false)}
+            onClick={() => {
+              if (scorer?.src === "pin") setScorer(null);
+              clearPins();
+            }}
+          >
             Clear ({pins.length})
           </button>
         )}

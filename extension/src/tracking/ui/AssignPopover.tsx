@@ -6,6 +6,7 @@ const C = {
   stroke: "rgba(255,255,255,0.14)",
   cyan: "#22d3ee",
   pink: "#f0abfc",
+  green: "#34d399",
   dim: "#8aa0af",
   ink: "#eaf2f7",
   red: "#f87171",
@@ -36,6 +37,10 @@ export function AssignPopover(props: {
   /** assignments whose track died (player left the shot) — quick re-tag row */
   parked?: Assignment[];
   removeLabel?: string;
+  /** is this player the current next-scorer pick */
+  scorer?: boolean;
+  /** toggle the next-scorer pick on this player (demo market) */
+  onScorer?: () => void;
   onAssign: (a: Assignment) => void;
   onRemove: () => void;
   onClose: () => void;
@@ -108,6 +113,21 @@ export function AssignPopover(props: {
     color: C.ink,
   };
 
+  const scorerBtn = props.onScorer && (
+    <button
+      onClick={props.onScorer}
+      style={{
+        ...btn,
+        width: "100%",
+        border: `1px solid ${C.green}`,
+        background: props.scorer ? C.green : "rgba(52,211,153,0.1)",
+        color: props.scorer ? "#04221a" : C.green,
+      }}
+    >
+      {props.scorer ? "⚽ Remove next-scorer pick" : "⚽ Pick as next scorer (demo)"}
+    </button>
+  );
+
   return (
     <div
       onClick={(e) => e.stopPropagation()}
@@ -161,6 +181,7 @@ export function AssignPopover(props: {
             {column("home")}
             {column("away")}
           </div>
+          {scorerBtn && <div style={{ marginTop: 8 }}>{scorerBtn}</div>}
           <button onClick={props.onRemove} style={{ ...btn, marginTop: 8, color: C.red, width: "100%" }}>
             {props.removeLabel ?? "Remove pin"}
           </button>
@@ -179,11 +200,14 @@ export function AssignPopover(props: {
             </span>
           </div>
           <div style={{ fontSize: 10.5, color: C.dim, margin: "6px 0 8px", lineHeight: 1.45 }}>
-            Player markets need player-level on-chain proofs — display only for now.
+            Next-scorer is a demo market — settlement needs player-level
+            on-chain proofs (TxLINE roadmap), so the pick is display-only.
           </div>
-          <button disabled style={{ ...btn, width: "100%", opacity: 0.4, cursor: "default" }}>
-            Player markets — soon
-          </button>
+          {scorerBtn ?? (
+            <button disabled style={{ ...btn, width: "100%", opacity: 0.4, cursor: "default" }}>
+              Player markets — soon
+            </button>
+          )}
           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
             <button onClick={() => setPicking(true)} style={{ ...btn, flex: 1 }}>
               Reassign

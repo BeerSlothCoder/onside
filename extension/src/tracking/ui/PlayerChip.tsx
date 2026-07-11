@@ -11,9 +11,19 @@ const TEAM_COLOR: Record<string, string> = { home: "#22d3ee", away: "#f0abfc" };
  * A chip anchored at a normalized position inside the video-content layer.
  * Positioned with percentages so the layer's rAF box-sync moves it for free.
  */
-export function PlayerChip(props: { pin: Pin; selected: boolean; onClick: () => void }) {
+export function PlayerChip(props: {
+  pin: Pin;
+  selected: boolean;
+  /** this pin is the current next-scorer pick — render it green */
+  scorer?: boolean;
+  onClick: () => void;
+}) {
   const { pin } = props;
-  const color = pin.assignment ? TEAM_COLOR[pin.assignment.team] : "#eaf2f7";
+  const color = props.scorer
+    ? "#34d399"
+    : pin.assignment
+      ? TEAM_COLOR[pin.assignment.team]
+      : "#eaf2f7";
   return (
     <div
       style={{
@@ -45,10 +55,11 @@ export function PlayerChip(props: { pin: Pin; selected: boolean; onClick: () => 
           fontWeight: 800,
           fontFamily: "system-ui, sans-serif",
           whiteSpace: "nowrap",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
+          boxShadow: props.scorer ? "0 0 10px rgba(52,211,153,0.7)" : "0 2px 8px rgba(0,0,0,0.6)",
         }}
       >
-        {pin.assignment ? `${pin.assignment.n} · ${shortName(pin.assignment.name)}` : "＋ assign"}
+        {props.scorer ? "⚽ " : ""}
+        {pin.assignment ? `${pin.assignment.n} · ${shortName(pin.assignment.name)}` : props.scorer ? "next scorer" : "＋ assign"}
       </button>
       {/* pointer stem + anchor dot */}
       <div style={{ width: 1.5, height: 7, background: color, opacity: 0.9 }} />
