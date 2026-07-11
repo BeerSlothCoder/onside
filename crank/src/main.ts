@@ -85,7 +85,7 @@ async function main() {
   const tracked = new Map<number, TrackedMarket[]>();
   for (const fx of fixtureIds) {
     const list: TrackedMarket[] = [];
-    for (const [kindByte, statKey] of [[0, 1], [1, 7]] as const) {
+    for (const [kindByte, statKey] of [[0, 1], [1, 7], [1, 8]] as const) {
       const skBuf = Buffer.alloc(4);
       skBuf.writeUInt32LE(statKey);
       const [pda] = PublicKey.findProgramAddressSync(

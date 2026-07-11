@@ -2,7 +2,8 @@
  * Publish Onside markets for a fixture:
  *   - Match result (1X2)          — goals diff, keys 1/2
  *   - Home corners over N         — key 7, StatOver
- * Usage: npx tsx crank/src/create-markets.ts <fixtureId> [cornersLine=4]
+ *   - Away corners over N         — key 8, StatOver
+ * Usage: npx tsx crank/src/create-markets.ts <fixtureId> [cornersLine=4] [awayCornersLine=cornersLine]
  */
 import "dotenv/config";
 import * as anchor from "@coral-xyz/anchor";
@@ -26,6 +27,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 const FIXTURE_ID = Number(process.argv[2]);
 const CORNERS_LINE = Number(process.argv[3] ?? 4);
+const AWAY_CORNERS_LINE = Number(process.argv[4] ?? CORNERS_LINE);
 if (!FIXTURE_ID) {
   console.error("usage: create-markets.ts <fixtureId> [cornersLine]");
   process.exit(1);
@@ -88,6 +90,7 @@ async function main() {
 
   await create({ matchResult: {} }, 0, 1, 2, 0, "Match result (1X2)");
   await create({ statOver: {} }, 1, 7, null, CORNERS_LINE, `Home corners over ${CORNERS_LINE}.5`);
+  await create({ statOver: {} }, 1, 8, null, AWAY_CORNERS_LINE, `Away corners over ${AWAY_CORNERS_LINE}.5`);
 }
 
 main().catch((e) => {

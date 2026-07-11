@@ -10,6 +10,14 @@ import {
   placeBet,
 } from "../chain/onside";
 import { loadWallet, onWalletChange } from "../chain/wallet";
+import {
+  fetchLiveAll,
+  fetchProxyLineups,
+  fetchSpOdds,
+  LineupPair,
+  LiveScore,
+  OddsLine,
+} from "../chain/live";
 import { MatchView } from "./MatchView";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import lineupsRaw from "../chain/lineups.json";
@@ -111,6 +119,9 @@ export function Overlay() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
+  const [live, setLive] = useState<Record<string, LiveScore>>({});
+  const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
+  const [proxyLineups, setProxyLineups] = useState<Record<string, LineupPair>>({});
 
   const flash = (msg: string) => {
     setToast(msg);
@@ -138,6 +149,47 @@ export function Overlay() {
     onWalletChange(refresh);
     return () => clearInterval(t);
   }, [refresh]);
+
+  // live scores from the local data proxy (renders nothing when offline)
+  useEffect(() => {
+    let stop = false;
+    const poll = async () => {
+      const l = await fetchLiveAll();
+      if (!stop && l) setLive(l);
+    };
+    poll();
+    const t = setInterval(poll, 15_000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, []);
+
+  // StablePrice odds + late-breaking lineups for the opened match
+  useEffect(() => {
+    if (activeFixture == null) {
+      setSpOdds(null);
+      return;
+    }
+    let stop = false;
+    const poll = async () => {
+      const [o, lu] = await Promise.all([
+        fetchSpOdds(activeFixture),
+        fetchProxyLineups(activeFixture),
+      ]);
+      if (stop) return;
+      setSpOdds(o);
+      if (lu && (lu.home?.length || lu.away?.length)) {
+        setProxyLineups((prev) => ({ ...prev, [String(activeFixture)]: lu }));
+      }
+    };
+    poll();
+    const t = setInterval(poll, 60_000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [activeFixture]);
 
   const betByMarket = useMemo(() => {
     const map = new Map<string, BetView>();
@@ -196,7 +248,11 @@ export function Overlay() {
   }
 
   const active = matches.find((g) => g.fixtureId === activeFixture);
-  const activeLineups = active ? LINEUPS[String(active.fixtureId)] : undefined;
+  // proxy-served lineups win over the baked file — tonight's XIs go live
+  // by editing crank/fixtures/lineups.json, no extension rebuild
+  const activeLineups = active
+    ? proxyLineups[String(active.fixtureId)] ?? LINEUPS[String(active.fixtureId)]
+    : undefined;
 
   // Share the active match with tracker instances in player iframes
   // (they can't see this panel's state, but they can read extension storage).
@@ -324,6 +380,8 @@ export function Overlay() {
               bets={betByMarket}
               wallet={wallet}
               busy={busy}
+              live={live[String(active.fixtureId)] ?? null}
+              spOdds={spOdds}
               onBet={submitBet}
               onClaim={submitClaim}
               onBack={() => setActiveFixture(null)}
@@ -336,6 +394,8 @@ export function Overlay() {
               {matches.map((g) => {
                 const myCount = g.markets.filter((m) => betByMarket.has(m.address.toBase58())).length;
                 const pool = g.markets.reduce((a, m) => a + m.totalPool, 0);
+                const lv = live[String(g.fixtureId)];
+                const started = lv && lv.phase > 1;
                 return (
                   <div
                     key={g.fixtureId}
@@ -351,8 +411,16 @@ export function Overlay() {
                   >
                     <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
                       <b>{g.home} vs {g.away}</b>
+                      {started && (
+                        <b style={{ color: lv.final ? C.dim : C.green }}>
+                          {lv.score.home}–{lv.score.away}
+                          {!lv.final && lv.clock.seconds > 0 && (
+                            <span style={{ fontWeight: 400 }}> · {Math.min(Math.floor(lv.clock.seconds / 60) + 1, 120)}′</span>
+                          )}
+                        </b>
+                      )}
                       <span style={{ marginLeft: "auto", fontSize: 10, color: g.state === "open" ? C.green : C.dim, textTransform: "uppercase", fontWeight: 700 }}>
-                        {g.state}
+                        {started && !lv.final ? lv.phaseLabel : g.state}
                       </span>
                     </div>
                     <div style={{ fontSize: 11, color: C.dim, marginTop: 2 }}>

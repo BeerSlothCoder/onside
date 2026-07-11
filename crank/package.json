@@ -6,6 +6,7 @@
   "license": "MIT",
   "scripts": {
     "start": "tsx src/main.ts",
+    "proxy": "tsx src/proxy.ts",
     "activate": "tsx src/activate.ts",
     "typecheck": "tsc --noEmit"
   },

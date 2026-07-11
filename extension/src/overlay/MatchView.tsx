@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
+import { clockMinute, LiveScore, OddsLine, sp1x2 } from "../chain/live";
 
 const C = {
   stroke: "rgba(255,255,255,0.14)",
@@ -31,6 +32,8 @@ export interface MatchViewProps {
   bets: Map<string, BetView>;
   wallet: Keypair | null;
   busy: string | null;
+  live?: LiveScore | null;
+  spOdds?: OddsLine[] | null;
   onBet: (m: MarketView, side: number, stake: number) => void;
   onClaim: (m: MarketView) => void;
   onBack: () => void;
@@ -49,6 +52,8 @@ export function MatchView({
   bets,
   wallet,
   busy,
+  live,
+  spOdds,
   onBet,
   onClaim,
   onBack,
@@ -60,7 +65,10 @@ export function MatchView({
   const homeCorners = markets.find((m) => m.kind === "statOver" && m.statKey === 7);
   const awayCorners = markets.find((m) => m.kind === "statOver" && m.statKey === 8);
 
-  const marketBtn = (m: MarketView | undefined, side: number, label: string) => {
+  const sp = sp1x2(spOdds ?? null);
+  const started = !!live && live.phase > 1;
+
+  const marketBtn = (m: MarketView | undefined, side: number, label: string, spPrice?: number) => {
     if (!m) {
       return (
         <div style={{ ...sideBtn, opacity: 0.35, cursor: "default" }}>
@@ -91,6 +99,11 @@ export function MatchView({
           ${m.pools[side]?.toFixed(0) ?? 0}
           {odds ? ` · ${odds.toFixed(2)}x` : ""}
         </div>
+        {spPrice !== undefined && (
+          <div style={{ fontSize: 9, color: sel ? "#04222a" : C.cyan }}>
+            SP {spPrice.toFixed(2)}
+          </div>
+        )}
       </button>
     );
   };
@@ -125,19 +138,42 @@ export function MatchView({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <button onClick={onBack} style={{ ...sideBtn, padding: "4px 10px" }}>←</button>
         <b style={{ fontSize: 14 }}>
-          {title.home} <span style={{ color: C.dim }}>vs</span> {title.away}
+          {title.home}{" "}
+          {started ? (
+            <span style={{ color: live.final ? C.ink : C.green }}>
+              {live.score.home}–{live.score.away}
+            </span>
+          ) : (
+            <span style={{ color: C.dim }}>vs</span>
+          )}{" "}
+          {title.away}
         </b>
-        <span style={{ marginLeft: "auto", fontSize: 10, color: C.dim, textTransform: "uppercase" }}>
-          {matchResult?.state ?? ""}
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 10,
+            color: started && !live.final ? C.green : C.dim,
+            textTransform: "uppercase",
+            fontWeight: started ? 700 : 400,
+          }}
+        >
+          {started
+            ? `${live.phaseLabel}${!live.final && live.clock.running ? ` ${clockMinute(live)}` : ""}`
+            : matchResult?.state ?? ""}
         </span>
       </div>
 
       {/* top: match result + totals strip */}
       <div style={{ display: "flex", gap: 6 }}>
-        <div style={{ flex: 1 }}>{marketBtn(matchResult, 0, title.home)}</div>
-        <div style={{ flex: 1 }}>{marketBtn(matchResult, 1, "Draw")}</div>
-        <div style={{ flex: 1 }}>{marketBtn(matchResult, 2, title.away)}</div>
+        <div style={{ flex: 1 }}>{marketBtn(matchResult, 0, title.home, sp?.[0])}</div>
+        <div style={{ flex: 1 }}>{marketBtn(matchResult, 1, "Draw", sp?.[1])}</div>
+        <div style={{ flex: 1 }}>{marketBtn(matchResult, 2, title.away, sp?.[2])}</div>
       </div>
+      {sp && (
+        <div style={{ fontSize: 9, color: C.dim, marginTop: 3, textAlign: "right" }}>
+          SP = TxODDS StablePrice (demargined) · pools set your actual payout
+        </div>
+      )}
       {claimRow(matchResult)}
       <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
         {["0", "1", "2", "3", "4", "5+"].map((g) => (
@@ -153,6 +189,9 @@ export function MatchView({
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>
             ⚑ {title.home} corners over {homeCorners ? `${homeCorners.threshold}.5` : ""}
+            {started && (
+              <b style={{ color: C.green }}> · now {live.corners.home}</b>
+            )}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <div style={{ flex: 1 }}>{marketBtn(homeCorners, 0, "Over")}</div>
@@ -162,7 +201,10 @@ export function MatchView({
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3, textAlign: "right" }}>
-            {title.away} corners ⚑
+            {started && (
+              <b style={{ color: C.green }}>now {live.corners.away} · </b>
+            )}
+            {title.away} corners {awayCorners ? `over ${awayCorners.threshold}.5 ` : ""}⚑
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <div style={{ flex: 1 }}>{marketBtn(awayCorners, 0, "Over")}</div>
