@@ -140,8 +140,10 @@ async function main() {
           const acc: any = await (program.account as any).market.fetch(m.pda);
           const state = JSON.stringify(acc.state);
 
-          // lock at kickoff
-          if (state === '{"open":{}}' && (LIVE_PHASES.has(phase) || FINAL_PHASES.has(phase))) {
+          // Lock only at full time — markets stay OPEN through the match so
+          // bettors can trade in-play (the core "played live" product), then
+          // lock once the result is final and settle from the proof.
+          if (state === '{"open":{}}' && FINAL_PHASES.has(phase)) {
             await program.methods
               .lockMarket()
               .accounts({ cranker: crank.publicKey, market: m.pda })

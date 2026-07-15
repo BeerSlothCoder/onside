@@ -199,15 +199,21 @@ export function StreamBoard(props: Props) {
     const players: Player[] = props.lineups[side].length
       ? props.lineups[side]
       : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: "" }));
-    const outside = side === "home" ? rect.left - RAIL_W - 4 : rect.left + rect.width + 4;
+    // Prefer flanking the video in the letterbox bars; if a bar is too narrow
+    // (or in fullscreen, where the video fills the screen) tuck the rail just
+    // INSIDE the video edge. Both sides use the same rule → always symmetric.
+    const inset = 6;
+    const leftBar = rect.left;
+    const rightBar = window.innerWidth - (rect.left + rect.width);
+    const flank = leftBar >= RAIL_W + 4 && rightBar >= RAIL_W + 4;
     const x =
       side === "home"
-        ? outside >= 4
-          ? outside
-          : rect.left + 4
-        : outside + RAIL_W <= window.innerWidth - 4
-          ? outside
-          : rect.left + rect.width - RAIL_W - 4;
+        ? flank
+          ? rect.left - RAIL_W - 4
+          : rect.left + inset
+        : flank
+          ? rect.left + rect.width + 4
+          : rect.left + rect.width - RAIL_W - inset;
     const rowH = Math.min(44, Math.max(24, (rect.height - 34) / players.length - 3));
     return (
       <div
