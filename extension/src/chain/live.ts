@@ -32,6 +32,12 @@ export type LineupPair = {
   away: { n: string; name: string }[];
 };
 
+export interface Goalscorer {
+  name: string;
+  odds: number;
+  key: string;
+}
+
 const DEFAULT_PROXY = "http://127.0.0.1:8787";
 let proxyUrl = DEFAULT_PROXY;
 // allow pointing at a hosted proxy without a rebuild:
@@ -72,6 +78,33 @@ export async function fetchSpOdds(fixtureId: number): Promise<OddsLine[] | null>
 
 export function fetchProxyLineups(fixtureId: number): Promise<LineupPair | null> {
   return getJson<LineupPair | null>(`/lineups/${fixtureId}`);
+}
+
+/** Anytime-goalscorer odds (the-odds-api) keyed by accent-free surname. */
+export async function fetchGoalscorer(
+  fixtureId: number
+): Promise<Record<string, Goalscorer> | null> {
+  const g = await getJson<{ players: Record<string, Goalscorer> }>(`/goalscorer/${fixtureId}`);
+  return g?.players ?? null;
+}
+
+/**
+ * Cross-source player key: first-initial + last surname token, accent-free.
+ * Must match the proxy's surnameKey exactly. Handles "Surname, First" and
+ * "First Surname", compound surnames, and same-surname disambiguation.
+ */
+export function surnameKey(name: string): string {
+  const clean = name.normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  let first = "", surname = "";
+  if (clean.includes(",")) {
+    [surname, first] = clean.split(",").map((s) => s.trim());
+  } else {
+    const parts = clean.split(/\s+/);
+    first = parts[0] ?? "";
+    surname = parts.slice(1).join(" ") || parts[0] || "";
+  }
+  const lastTok = surname.split(/\s+/).slice(-1)[0] ?? "";
+  return ((first[0] ?? "") + lastTok).toLowerCase();
 }
 
 /** Display minute for a live clock ("67′", "HT" handled by phaseLabel). */

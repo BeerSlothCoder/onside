@@ -11,12 +11,15 @@ import {
 } from "../chain/onside";
 import { loadWallet, onWalletChange } from "../chain/wallet";
 import {
+  fetchGoalscorer,
   fetchLiveAll,
   fetchProxyLineups,
   fetchSpOdds,
+  Goalscorer,
   LineupPair,
   LiveScore,
   OddsLine,
+  surnameKey,
 } from "../chain/live";
 import { MatchView } from "./MatchView";
 import { StreamBoard } from "./StreamBoard";
@@ -68,6 +71,7 @@ export function Overlay() {
   const [tracking, setTracking] = useState(false);
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
+  const [goalscorers, setGoalscorers] = useState<Record<string, Goalscorer> | null>(null);
   const [proxyLineups, setProxyLineups] = useState<Record<string, LineupPair>>({});
   const [videoRect, setVideoRect] = useState<Rect | null>(null);
 
@@ -129,20 +133,23 @@ export function Overlay() {
     };
   }, []);
 
-  // StablePrice odds + late-breaking lineups for the opened match
+  // StablePrice odds + goalscorer odds + late-breaking lineups for the opened match
   useEffect(() => {
     if (activeFixture == null) {
       setSpOdds(null);
+      setGoalscorers(null);
       return;
     }
     let stop = false;
     const poll = async () => {
-      const [o, lu] = await Promise.all([
+      const [o, lu, gs] = await Promise.all([
         fetchSpOdds(activeFixture),
         fetchProxyLineups(activeFixture),
+        fetchGoalscorer(activeFixture),
       ]);
       if (stop) return;
       setSpOdds(o);
+      setGoalscorers(gs);
       if (lu && (lu.home?.length || lu.away?.length)) {
         setProxyLineups((prev) => ({ ...prev, [String(activeFixture)]: lu }));
       }
@@ -254,6 +261,7 @@ export function Overlay() {
       <VideoOverlay
         lineups={{ home: activeLineups?.home ?? [], away: activeLineups?.away ?? [] }}
         teams={{ home: active?.home ?? "Home", away: active?.away ?? "Away" }}
+        goalscorers={goalscorers}
         flash={flash}
         onClose={() => setTracking(false)}
       />
@@ -269,8 +277,16 @@ export function Overlay() {
         busy={busy}
         live={live[String(active.fixtureId)] ?? null}
         spOdds={spOdds}
+        goalscorers={goalscorers}
         onBet={submitBet}
-        onTapPlayer={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+        onTapPlayer={(p) => {
+          const gs = goalscorers?.[surnameKey(p.name)];
+          flash(
+            gs
+              ? `${shortName(p.name)} — anytime scorer ⚽ ${gs.odds.toFixed(2)} (the-odds-api). Player markets need player-level proofs.`
+              : `${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`
+          );
+        }}
       />
     )}
     <div

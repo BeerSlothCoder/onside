@@ -26,7 +26,13 @@ const PORT = Number(process.env.PROXY_PORT ?? 8787);
 const DEFAULT_FIXTURES = [18209181, 18218149, 18213979, 18222446, 18241006];
 const SCORES_POLL_MS = 15_000;
 const ODDS_POLL_MS = 60_000;
+const GOALSCORER_POLL_MS = 10 * 60_000; // player props are quota-heavy — cache hard
 const LINEUPS_PATH = resolve(REPO_ROOT, "crank/fixtures/lineups.json");
+
+// The Odds API — player-prop (anytime goalscorer) odds. Key stays server-side.
+const ODDS_API_KEY = process.env.ODDS_API_KEY;
+const ODDS_API = "https://api.the-odds-api.com/v4";
+const ODDS_SPORTS = ["soccer_fifa_world_cup", "soccer_conmebol_copa_america"];
 
 const PHASE_LABELS: Record<number, string> = {
   [GamePhase.NotStarted]: "upcoming",
@@ -73,6 +79,8 @@ const live = new Map<number, LiveInfo>();
 // line (type+line+period) and keep the freshest price for each
 const odds = new Map<number, { byKey: Map<string, OddsLine>; updatedAt: number }>();
 const startTimes = new Map<number, number>();
+const fixtureMeta = new Map<number, { home: string; away: string; start: number }>();
+const goalscorer = new Map<number, { players: Record<string, Goalscorer>; updatedAt: number }>();
 
 /** Reduce a scores snapshot (latest message per action type) to one LiveInfo. */
 function mergeSnapshot(fixtureId: number, arr: any[]): LiveInfo | null {
@@ -122,6 +130,82 @@ function trimOdds(arr: any[]): OddsLine[] {
     }));
 }
 
+/**
+ * Cross-source player key: first-initial + last surname token, accent-free.
+ * Handles both "Surname, First" (lineups) and "First Surname" (the-odds-api),
+ * and compound surnames ("Mac Allister"), and disambiguates same-surname
+ * players by first initial (Emiliano vs Lisandro Martínez).
+ */
+export function surnameKey(name: string): string {
+  const clean = name.normalize("NFD").replace(/[̀-ͯ]/g, "").trim();
+  let first = "", surname = "";
+  if (clean.includes(",")) {
+    [surname, first] = clean.split(",").map((s) => s.trim());
+  } else {
+    const parts = clean.split(/\s+/);
+    first = parts[0] ?? "";
+    surname = parts.slice(1).join(" ") || parts[0] || "";
+  }
+  const lastTok = surname.split(/\s+/).slice(-1)[0] ?? "";
+  return ((first[0] ?? "") + lastTok).toLowerCase();
+}
+
+interface Goalscorer {
+  name: string;
+  odds: number;
+  key: string;
+}
+
+/** Anytime-goalscorer odds for a fixture from the-odds-api, keyed by surname. */
+async function fetchGoalscorer(
+  home: string,
+  away: string,
+  startMs: number
+): Promise<Record<string, Goalscorer> | null> {
+  if (!ODDS_API_KEY) return null;
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z]/g, "");
+  for (const sport of ODDS_SPORTS) {
+    try {
+      const evs: any[] = await (
+        await fetch(`${ODDS_API}/sports/${sport}/events/?apiKey=${ODDS_API_KEY}`)
+      ).json();
+      if (!Array.isArray(evs)) continue;
+      const ev = evs.find((e) => {
+        const h = norm(e.home_team ?? ""), a = norm(e.away_team ?? "");
+        const teamsMatch =
+          (h.includes(norm(home)) || norm(home).includes(h)) &&
+          (a.includes(norm(away)) || norm(away).includes(a));
+        const near = Math.abs(new Date(e.commence_time).getTime() - startMs) < 2 * 86_400_000;
+        return teamsMatch && near;
+      });
+      if (!ev) continue;
+      const odds: any = await (
+        await fetch(
+          `${ODDS_API}/sports/${sport}/events/${ev.id}/odds/?apiKey=${ODDS_API_KEY}` +
+            `&regions=eu,uk&markets=player_goal_scorer_anytime&oddsFormat=decimal`
+        )
+      ).json();
+      const out: Record<string, Goalscorer> = {};
+      for (const bk of odds.bookmakers ?? []) {
+        for (const mk of bk.markets ?? []) {
+          if (mk.key !== "player_goal_scorer_anytime") continue;
+          for (const o of mk.outcomes ?? []) {
+            const player = o.description ?? o.name;
+            if (!player || typeof o.price !== "number") continue;
+            const key = surnameKey(player);
+            // keep the best (shortest) price across bookmakers
+            if (!out[key] || o.price < out[key].odds) out[key] = { name: player, odds: o.price, key };
+          }
+        }
+      }
+      if (Object.keys(out).length) return out;
+    } catch (e: any) {
+      console.warn(`goalscorer ${sport}: ${e.message}`);
+    }
+  }
+  return null;
+}
+
 function readLineups(): Record<string, unknown> {
   try {
     return JSON.parse(readFileSync(LINEUPS_PATH, "utf8"));
@@ -147,10 +231,30 @@ async function main() {
 
   try {
     const snap = (await txline.fixturesSnapshot()) as any[];
-    for (const f of snap) if (fixtures.includes(f.FixtureId)) startTimes.set(f.FixtureId, f.StartTime);
+    for (const f of snap)
+      if (fixtures.includes(f.FixtureId)) {
+        startTimes.set(f.FixtureId, f.StartTime);
+        fixtureMeta.set(f.FixtureId, { home: f.Participant1, away: f.Participant2, start: f.StartTime });
+      }
   } catch (e: any) {
     console.warn("fixtures snapshot failed (will poll everything):", e.message);
   }
+
+  const pollGoalscorer = async () => {
+    if (!ODDS_API_KEY) return;
+    for (const fx of fixtures) {
+      const meta = fixtureMeta.get(fx);
+      if (!meta) continue;
+      if (live.get(fx)?.final) continue;
+      // only around the match window (player props exist near kickoff)
+      if (!inWindow(fx, 3 * 86_400_000, 4 * 3_600_000)) continue;
+      const players = await fetchGoalscorer(meta.home, meta.away, meta.start);
+      if (players) {
+        goalscorer.set(fx, { players, updatedAt: Date.now() });
+        console.log(`goalscorer ${fx}: ${Object.keys(players).length} players priced`);
+      }
+    }
+  };
 
   const pollScores = async (all = false) => {
     for (const fx of fixtures) {
@@ -188,8 +292,10 @@ async function main() {
   };
 
   await Promise.all([pollScores(true), pollOdds(true)]);
+  pollGoalscorer();
   setInterval(pollScores, SCORES_POLL_MS);
   setInterval(pollOdds, ODDS_POLL_MS);
+  setInterval(pollGoalscorer, GOALSCORER_POLL_MS);
 
   const json = (res: ServerResponse, status: number, body: unknown) => {
     res.writeHead(status, {
@@ -223,6 +329,12 @@ async function main() {
       return arg
         ? json(res, 200, (all as any)[arg] ?? null)
         : json(res, 200, all);
+    }
+    if (route === "goalscorer") {
+      const g = goalscorer.get(Number(arg));
+      return g
+        ? json(res, 200, { players: g.players, updatedAt: g.updatedAt })
+        : json(res, 404, { error: "no goalscorer odds" });
     }
     return json(res, 404, { error: "not found" });
   }).listen(PORT, "127.0.0.1", () => {

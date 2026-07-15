@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
-import { LiveScore, OddsLine, sp1x2, spTotalGoals } from "../chain/live";
+import { Goalscorer, LiveScore, OddsLine, sp1x2, spTotalGoals, surnameKey } from "../chain/live";
 import type { Rect } from "../tracking/geometry";
 import { teamColors, type TeamColors } from "./teamColors";
 import { BRAND, monoLabel } from "./brand";
@@ -41,6 +41,7 @@ interface Props {
   busy: string | null;
   live?: LiveScore | null;
   spOdds?: OddsLine[] | null;
+  goalscorers?: Record<string, Goalscorer> | null;
   onBet: (m: MarketView, side: number, stake: number) => void;
   onTapPlayer: (p: Player) => void;
 }
@@ -113,11 +114,20 @@ export function StreamBoard(props: Props) {
       >
         {label}
         {isOutcome ? " ✓" : ""}
-        <span style={{ fontSize: 9.5, fontWeight: 700, opacity: 0.85 }}>
-          {odds ? ` ${odds.toFixed(2)}x` : ""}
-          {spPrice !== undefined ? ` · SP ${spPrice.toFixed(2)}` : ""}
-          {extra ? ` ${extra}` : ""}
-        </span>
+        {/* StablePrice is the meaningful market price; pool odds only once the
+            parimutuel pool has real liquidity (else it reads a misleading 1.00x) */}
+        {spPrice !== undefined ? (
+          <span style={{ fontSize: 10.5, fontWeight: 800, color: sel ? "#04222a" : C.cyan }}>
+            {" "}
+            {spPrice.toFixed(2)}
+          </span>
+        ) : odds ? (
+          <span style={{ fontSize: 9.5, fontWeight: 700, opacity: 0.85 }}> {odds.toFixed(2)}x</span>
+        ) : null}
+        {spPrice !== undefined && m.totalPool > 1 && odds ? (
+          <span style={{ fontSize: 8.5, color: C.dim }}> · pool {odds.toFixed(2)}x</span>
+        ) : null}
+        {extra ? <span style={{ fontSize: 9, color: C.dim }}> {extra}</span> : null}
       </button>
     );
   };
@@ -284,6 +294,23 @@ export function StreamBoard(props: Props) {
               >
                 {p.name ? shortName(p.name) : ""}
               </span>
+              {(() => {
+                const gs = p.name ? props.goalscorers?.[surnameKey(p.name)] : undefined;
+                return gs ? (
+                  <span
+                    title={`${gs.name} — anytime goalscorer odds (the-odds-api)`}
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      fontWeight: 800,
+                      color: C.green,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    ⚽{gs.odds.toFixed(2)}
+                  </span>
+                ) : null;
+              })()}
             </button>
           ))}
         </div>

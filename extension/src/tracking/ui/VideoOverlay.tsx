@@ -7,6 +7,7 @@ import { DebugHud } from "./DebugHud";
 import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
 import { teamColors } from "../../overlay/teamColors";
+import { surnameKey } from "../../chain/live";
 
 const C = {
   bg: "rgba(10,16,22,0.92)",
@@ -48,6 +49,7 @@ function probeBadge(probe: ReadbackResult | null): { label: string; color: strin
 export function VideoOverlay(props: {
   lineups: Lineups;
   teams: { home: string; away: string };
+  goalscorers?: Record<string, { name: string; odds: number; key: string }> | null;
   flash: (msg: string) => void;
   onClose: () => void;
 }) {
@@ -288,6 +290,11 @@ export function VideoOverlay(props: {
                 >
                   {picked ? "⚽ " : ""}
                   {a ? `${a.n} · ${shortName(a.name)}` : picked ? "next scorer" : ""}
+                  {a && props.goalscorers?.[surnameKey(a.name)] && (
+                    <span style={{ color: C.green, marginLeft: 4, fontWeight: 800 }}>
+                      ⚽{props.goalscorers[surnameKey(a.name)].odds.toFixed(2)}
+                    </span>
+                  )}
                 </button>
               </div>
             );
