@@ -53,6 +53,17 @@ try {
 }
 
 async function getJson<T>(path: string, timeoutMs = 3000): Promise<T | null> {
+  // Prefer the background service worker (extension origin — not subject to the
+  // stream page's CSP or Chrome Private Network Access). Fall back to a direct
+  // fetch if the SW is unavailable (e.g. orphaned script after reload).
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const reply = await chrome.runtime.sendMessage({ onsideProxy: path, base: proxyUrl });
+      if (reply && reply.ok) return (reply.data as T) ?? null;
+    }
+  } catch {
+    /* fall through to direct fetch */
+  }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {

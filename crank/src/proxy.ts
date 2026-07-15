@@ -237,8 +237,23 @@ async function main() {
         fixtureMeta.set(f.FixtureId, { home: f.Participant1, away: f.Participant2, start: f.StartTime });
       }
   } catch (e: any) {
-    console.warn("fixtures snapshot failed (will poll everything):", e.message);
+    console.warn("fixtures snapshot failed:", e.message);
   }
+  // Fallback for any fixture the snapshot missed: the baked fixtures file
+  // (team names + start), so goalscorer matching still works offline.
+  try {
+    const local: Array<{ id: number; home: string; away: string; start: number }> = JSON.parse(
+      readFileSync(resolve(REPO_ROOT, "extension/src/chain/fixtures.json"), "utf8")
+    );
+    for (const f of local)
+      if (fixtures.includes(f.id) && !fixtureMeta.has(f.id)) {
+        startTimes.set(f.id, f.start);
+        fixtureMeta.set(f.id, { home: f.home, away: f.away, start: f.start });
+      }
+  } catch (e: any) {
+    console.warn("local fixtures fallback failed:", e.message);
+  }
+  console.log(`fixture meta loaded for ${fixtureMeta.size}/${fixtures.length} fixtures`);
 
   const pollGoalscorer = async () => {
     if (!ODDS_API_KEY) return;
@@ -301,6 +316,11 @@ async function main() {
     res.writeHead(status, {
       "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
+      // Chrome Private Network Access: an HTTPS page reaching localhost sends a
+      // preflight and requires this header, else the request is blocked.
+      "Access-Control-Allow-Private-Network": "true",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "*",
       "Cache-Control": "no-store",
     });
     res.end(JSON.stringify(body));
@@ -337,8 +357,10 @@ async function main() {
         : json(res, 404, { error: "no goalscorer odds" });
     }
     return json(res, 404, { error: "not found" });
-  }).listen(PORT, "127.0.0.1", () => {
-    console.log(`Onside proxy on http://127.0.0.1:${PORT} — fixtures: ${fixtures.join(", ")}`);
+    // bind all interfaces so a Windows browser can reach a WSL-hosted proxy
+    // (localhost forwarding + the WSL IP both work)
+  }).listen(PORT, "0.0.0.0", () => {
+    console.log(`Onside proxy on http://0.0.0.0:${PORT} — fixtures: ${fixtures.join(", ")}`);
     console.log(`lineups hot-file: ${LINEUPS_PATH}`);
   });
 }
