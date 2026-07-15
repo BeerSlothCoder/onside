@@ -24,6 +24,8 @@ import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
 import { teamColors } from "./teamColors";
+import { OnsideLogo } from "./OnsideLogo";
+import { BRAND, monoLabel } from "./brand";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -34,12 +36,12 @@ function shortName(full: string): string {
 }
 
 const C = {
-  bg: "rgba(10,16,22,0.78)",
-  stroke: "rgba(255,255,255,0.14)",
-  cyan: "#22d3ee",
-  green: "#34d399",
-  dim: "#8aa0af",
-  ink: "#eaf2f7",
+  bg: BRAND.bar,
+  stroke: BRAND.stroke,
+  cyan: BRAND.cyan,
+  green: BRAND.lime,
+  dim: BRAND.dim,
+  ink: BRAND.ink,
 };
 
 /** Stale dev accounts from pre-release program layouts decode to garbage. */
@@ -55,7 +57,7 @@ interface MatchGroup {
 }
 
 export function Overlay() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [wallet, setWallet] = useState<Keypair | null>(null);
   const [bal, setBal] = useState<{ sol: number; usdc: number } | null>(null);
   const [markets, setMarkets] = useState<MarketView[]>([]);
@@ -181,6 +183,19 @@ export function Overlay() {
     });
   }, [markets]);
 
+  // auto-focus the match that matters: a live one, else the soonest open,
+  // else whatever's first — so the on-stream board shows without the panel.
+  useEffect(() => {
+    if (activeFixture != null) return;
+    if (!matches.length) return;
+    const isLive = (g: MatchGroup) => {
+      const l = live[String(g.fixtureId)];
+      return l && l.phase > 1 && !l.final;
+    };
+    const pick = matches.find(isLive) ?? matches.find((g) => g.state === "open") ?? matches[0];
+    setActiveFixture(pick.fixtureId);
+  }, [matches, activeFixture, live]);
+
   async function submitBet(m: MarketView, side: number, stake: number) {
     if (!wallet) return;
     setBusy("bet");
@@ -243,7 +258,7 @@ export function Overlay() {
         onClose={() => setTracking(false)}
       />
     )}
-    {active && open && videoRect && (
+    {active && videoRect && (
       <StreamBoard
         rect={videoRect}
         teams={{ home: active.home, away: active.away }}
@@ -262,7 +277,7 @@ export function Overlay() {
       style={{
         pointerEvents: "auto",
         margin: 16,
-        width: active ? 520 : 320,
+        width: open ? (active ? 480 : 320) : "auto",
         maxHeight: "84vh",
         display: "flex",
         flexDirection: "column",
@@ -279,25 +294,29 @@ export function Overlay() {
         transition: "width .2s ease",
       }}
     >
-      {/* header */}
+      {/* header — the slim brand bar (betting happens on the stream strips) */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          padding: "10px 14px",
+          gap: 9,
+          padding: "9px 12px",
           cursor: "pointer",
-          background: "rgba(255,255,255,0.04)",
+          background: "rgba(255,255,255,0.03)",
           flexShrink: 0,
         }}
         onClick={() => setOpen(!open)}
+        title="Markets & claims"
       >
-        <strong style={{ fontSize: 15 }}>
+        <span style={{ color: C.ink, display: "flex", alignItems: "center" }}>
+          <OnsideLogo size={20} />
+        </span>
+        <strong style={{ fontSize: 15, letterSpacing: 0.2 }}>
           on<span style={{ color: C.cyan }}>side</span>
         </strong>
-        <span style={{ fontSize: 10.5, color: C.dim }}>played live · devnet</span>
+        <span style={{ ...monoLabel, fontSize: 8.5, color: C.dim }}>played&nbsp;live · devnet</span>
         {bal && (
-          <span style={{ marginLeft: "auto", fontSize: 12, color: C.green, fontWeight: 700 }}>
+          <span style={{ marginLeft: "auto", fontSize: 12.5, color: BRAND.lime, fontWeight: 800 }}>
             ${bal.usdc.toFixed(2)}
           </span>
         )}
@@ -308,7 +327,7 @@ export function Overlay() {
           }}
           title="Sticky player chips on the video"
           style={{
-            marginLeft: bal ? 6 : "auto",
+            marginLeft: bal ? 4 : "auto",
             border: `1px solid ${tracking ? C.cyan : C.stroke}`,
             background: tracking ? C.cyan : "transparent",
             color: tracking ? "#04222a" : C.ink,
@@ -321,7 +340,7 @@ export function Overlay() {
         >
           🎯
         </button>
-        <span style={{ marginLeft: 6, fontSize: 12 }}>{open ? "−" : "+"}</span>
+        <span style={{ marginLeft: 2, fontSize: 12, color: C.dim }}>{open ? "▴" : "▾"}</span>
       </div>
 
       {open && (
@@ -333,6 +352,32 @@ export function Overlay() {
             </div>
           )}
 
+          {matches.length > 1 && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+              {matches.map((g) => {
+                const sel = g.fixtureId === activeFixture;
+                return (
+                  <button
+                    key={g.fixtureId}
+                    onClick={() => setActiveFixture(g.fixtureId)}
+                    style={{
+                      border: `1px solid ${sel ? C.cyan : C.stroke}`,
+                      background: sel ? "rgba(34,211,238,0.14)" : "rgba(255,255,255,0.04)",
+                      color: sel ? C.cyan : C.ink,
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    {shortName(g.home)}–{shortName(g.away)}
+                    <span style={{ color: C.dim, fontWeight: 400 }}> · {g.state}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {active ? (
             <MatchView
               fixtureId={active.fixtureId}
@@ -345,7 +390,7 @@ export function Overlay() {
               spOdds={spOdds}
               onBet={submitBet}
               onClaim={submitClaim}
-              onBack={() => setActiveFixture(null)}
+              onBack={() => setOpen(false)}
             />
           ) : (
             <>

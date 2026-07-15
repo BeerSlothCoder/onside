@@ -4,6 +4,7 @@ import { BetView, impliedOdds, MarketView } from "../chain/onside";
 import { LiveScore, OddsLine, sp1x2 } from "../chain/live";
 import type { Rect } from "../tracking/geometry";
 import { teamColors, type TeamColors } from "./teamColors";
+import { BRAND, monoLabel } from "./brand";
 
 /**
  * goal.live-style board rendered ON the stream:
@@ -14,12 +15,12 @@ import { teamColors, type TeamColors } from "./teamColors";
  */
 
 const C = {
-  glass: "rgba(8,14,20,0.72)",
-  stroke: "rgba(255,255,255,0.16)",
-  cyan: "#22d3ee",
-  green: "#34d399",
-  dim: "#8aa0af",
-  ink: "#eaf2f7",
+  glass: BRAND.glass,
+  stroke: BRAND.stroke,
+  cyan: BRAND.cyan,
+  green: BRAND.lime,
+  dim: BRAND.dim,
+  ink: BRAND.ink,
 };
 
 const RAIL_W = 148;
@@ -288,7 +289,19 @@ export function StreamBoard(props: Props) {
   };
 
   const goalsChips = ["0", "1", "2", "3", "4", "5+"].map((g) => (
-    <span key={g} style={{ fontSize: 9.5, color: C.dim, whiteSpace: "nowrap" }}>
+    <span
+      key={g}
+      title="Exact-goals market — coming soon"
+      style={{
+        fontSize: 10,
+        fontWeight: 800,
+        color: C.dim,
+        border: `1px solid ${C.stroke}`,
+        borderRadius: 6,
+        padding: "2px 6px",
+        whiteSpace: "nowrap",
+      }}
+    >
       {g}
     </span>
   ));
@@ -370,7 +383,7 @@ export function StreamBoard(props: Props) {
             {awayCorners ? `${awayCorners.threshold}.5` : ""} corners ⚑
           </span>
           <span style={{ width: 1, alignSelf: "stretch", background: C.stroke }} />
-          <span style={{ fontSize: 9.5, color: C.dim }}>goals</span>
+          <span style={{ ...monoLabel, fontSize: 9, color: C.dim }}>goals</span>
           {goalsChips}
         </div>
         {slip && slip.m !== matchResult && miniSlip}

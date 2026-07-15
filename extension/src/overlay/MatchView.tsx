@@ -3,14 +3,15 @@ import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
 import { clockMinute, LiveScore, OddsLine, sp1x2 } from "../chain/live";
 import { teamColors } from "./teamColors";
+import { BRAND } from "./brand";
 
 const C = {
-  stroke: "rgba(255,255,255,0.14)",
-  cyan: "#22d3ee",
-  green: "#34d399",
+  stroke: BRAND.stroke,
+  cyan: BRAND.cyan,
+  green: BRAND.lime,
   red: "#f87171",
-  dim: "#8aa0af",
-  ink: "#eaf2f7",
+  dim: BRAND.dim,
+  ink: BRAND.ink,
   pitch: "rgba(20,80,40,0.35)",
 };
 
