@@ -19,10 +19,11 @@ import {
   OddsLine,
 } from "../chain/live";
 import { MatchView } from "./MatchView";
+import { StreamBoard } from "./StreamBoard";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
-import { teamColors, type TeamColors } from "./teamColors";
+import { teamColors } from "./teamColors";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -30,114 +31,6 @@ const LINEUPS = lineupsRaw as Record<string, { home: Lineup; away: Lineup }>;
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
-}
-
-/** Rail outer width in px: 170 content + 2×10 padding + 2×1 border. */
-const RAIL_W = 192;
-
-function PlayerRail(props: {
-  team: string;
-  players: Lineup;
-  side: "left" | "right";
-  colors: TeamColors;
-  /** viewport-px left position (computed from the video rect) */
-  x: number;
-  onTap: (p: { n: string; name: string }) => void;
-}) {
-  const { colors } = props;
-  const mirrored = props.side === "right";
-  return (
-    <div
-      style={{
-        position: "fixed",
-        bottom: 64,
-        left: props.x,
-        width: 170,
-        pointerEvents: "auto",
-        background: "rgba(8,14,20,0.62)",
-        backdropFilter: "blur(10px)",
-        WebkitBackdropFilter: "blur(10px)",
-        border: "1px solid rgba(255,255,255,0.14)",
-        borderRadius: 14,
-        overflow: "hidden",
-        zIndex: 2147483646,
-        fontFamily: "system-ui, sans-serif",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
-      }}
-    >
-      {/* kit-color header bar */}
-      <div
-        style={{
-          background: colors.badge,
-          color: colors.badgeText,
-          fontSize: 11.5,
-          fontWeight: 800,
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
-          padding: "6px 10px",
-          textAlign: "center",
-          borderBottom: `2px solid ${colors.accent}`,
-          textShadow: "0 1px 2px rgba(0,0,0,0.35)",
-        }}
-      >
-        {props.team}
-      </div>
-      <div style={{ padding: 7 }}>
-        {(props.players.length ? props.players : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: `Player ${i + 1}` }))).map((p, i) => (
-          <button
-            key={i}
-            onClick={() => props.onTap(p)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 7,
-              flexDirection: mirrored ? "row-reverse" : "row",
-              width: "100%",
-              marginBottom: 3,
-              border: "none",
-              borderRadius: 8,
-              padding: "3px 5px",
-              background: i % 2 ? "transparent" : "rgba(255,255,255,0.045)",
-              cursor: "pointer",
-              overflow: "hidden",
-            }}
-          >
-            <span
-              style={{
-                flexShrink: 0,
-                width: 21,
-                height: 21,
-                borderRadius: 999,
-                background: colors.badge,
-                color: colors.badgeText,
-                border: `1px solid ${colors.accent}`,
-                fontSize: 10.5,
-                fontWeight: 800,
-                lineHeight: "19px",
-                textAlign: "center",
-              }}
-            >
-              {p.n}
-            </span>
-            <span
-              style={{
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: "#eaf2f7",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                textAlign: mirrored ? "right" : "left",
-                flex: 1,
-              }}
-            >
-              {shortName(p.name)}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 const C = {
@@ -350,38 +243,21 @@ export function Overlay() {
         onClose={() => setTracking(false)}
       />
     )}
-    {active && open && (() => {
-      // flank the stream: rails hug the video's left/right edges, clamped
-      // to the viewport; without a video, mirror symmetrically on the window
-      const vw = window.innerWidth;
-      // straddle the video edges: rails half-in half-out, clamped on screen
-      const homeX = videoRect
-        ? Math.max(8, videoRect.left - RAIL_W / 2)
-        : 12;
-      const awayX = videoRect
-        ? Math.min(vw - RAIL_W - 8, videoRect.left + videoRect.width - RAIL_W / 2)
-        : vw - RAIL_W - 12;
-      return (
-        <>
-          <PlayerRail
-            team={active.home}
-            players={activeLineups?.home ?? []}
-            side="left"
-            colors={teamColors(active.home, "home")}
-            x={homeX}
-            onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
-          />
-          <PlayerRail
-            team={active.away}
-            players={activeLineups?.away ?? []}
-            side="right"
-            colors={teamColors(active.away, "away")}
-            x={awayX}
-            onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
-          />
-        </>
-      );
-    })()}
+    {active && open && videoRect && (
+      <StreamBoard
+        rect={videoRect}
+        teams={{ home: active.home, away: active.away }}
+        lineups={{ home: activeLineups?.home ?? [], away: activeLineups?.away ?? [] }}
+        markets={active.markets}
+        bets={betByMarket}
+        wallet={wallet}
+        busy={busy}
+        live={live[String(active.fixtureId)] ?? null}
+        spOdds={spOdds}
+        onBet={submitBet}
+        onTapPlayer={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
+      />
+    )}
     <div
       style={{
         pointerEvents: "auto",
