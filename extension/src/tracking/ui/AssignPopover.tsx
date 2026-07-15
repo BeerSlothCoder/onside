@@ -33,6 +33,8 @@ export function AssignPopover(props: {
   assignment: Assignment | null;
   lineups: Lineups;
   teams: { home: string; away: string };
+  /** kit-color accents per side (falls back to cyan/pink) */
+  accents?: { home: string; away: string };
   taken: Set<string>; // "team:n" pairs already assigned elsewhere
   /** assignments whose track died (player left the shot) — quick re-tag row */
   parked?: Assignment[];
@@ -47,10 +49,12 @@ export function AssignPopover(props: {
 }) {
   const [picking, setPicking] = useState(!props.assignment);
   const a = props.assignment;
+  const teamColor = (team: Team) =>
+    props.accents?.[team] ?? (team === "home" ? C.cyan : C.pink);
 
   const column = (team: Team) => {
     const players = props.lineups[team].length ? props.lineups[team] : PLACEHOLDER_XI;
-    const color = team === "home" ? C.cyan : C.pink;
+    const color = teamColor(team);
     return (
       <div style={{ flex: 1, minWidth: 0 }}>
         <div
@@ -167,8 +171,8 @@ export function AssignPopover(props: {
                       ...btn,
                       padding: "3px 8px",
                       fontSize: 10.5,
-                      borderColor: p.team === "home" ? C.cyan : C.pink,
-                      color: p.team === "home" ? C.cyan : C.pink,
+                      borderColor: teamColor(p.team),
+                      color: teamColor(p.team),
                     }}
                   >
                     {p.n} · {shortName(p.name)}
@@ -192,7 +196,7 @@ export function AssignPopover(props: {
             <b style={{ fontSize: 15 }}>
               {a.n} · {shortName(a.name)}
             </b>
-            <span style={{ fontSize: 10.5, color: a.team === "home" ? C.cyan : C.pink, fontWeight: 700 }}>
+            <span style={{ fontSize: 10.5, color: teamColor(a.team), fontWeight: 700 }}>
               {props.teams[a.team]}
             </span>
             <span style={{ marginLeft: "auto", cursor: "pointer", color: C.dim }} onClick={props.onClose}>

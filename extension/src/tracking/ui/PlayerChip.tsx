@@ -16,13 +16,15 @@ export function PlayerChip(props: {
   selected: boolean;
   /** this pin is the current next-scorer pick — render it green */
   scorer?: boolean;
+  /** kit-color accent for the assigned team (falls back to cyan/pink) */
+  accent?: string;
   onClick: () => void;
 }) {
   const { pin } = props;
   const color = props.scorer
     ? "#34d399"
     : pin.assignment
-      ? TEAM_COLOR[pin.assignment.team]
+      ? props.accent ?? TEAM_COLOR[pin.assignment.team]
       : "#eaf2f7";
   return (
     <div

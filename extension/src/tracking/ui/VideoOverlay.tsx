@@ -6,6 +6,7 @@ import { useDetector } from "../useDetector";
 import { DebugHud } from "./DebugHud";
 import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
+import { teamColors } from "../../overlay/teamColors";
 
 const C = {
   bg: "rgba(10,16,22,0.92)",
@@ -112,6 +113,15 @@ export function VideoOverlay(props: {
 
   const liveIds = useMemo(() => new Set(tracks.map((t) => t.id)), [tracks]);
 
+  // kit-color accents for chips/pills — falls back to cyan/pink for unknown teams
+  const accents = useMemo(
+    () => ({
+      home: teamColors(props.teams.home, "home").accent,
+      away: teamColors(props.teams.away, "away").accent,
+    }),
+    [props.teams.home, props.teams.away]
+  );
+
   // assignments whose track has died (player left the shot) — offered for re-tag
   const parked = useMemo(() => {
     const out: Assignment[] = [];
@@ -209,9 +219,7 @@ export function VideoOverlay(props: {
             const color = picked
               ? C.green
               : a
-                ? a.team === "home"
-                  ? C.cyan
-                  : "#f0abfc"
+                ? accents[a.team]
                 : "rgba(34,211,238,0.6)";
             return (
               <div
@@ -290,6 +298,7 @@ export function VideoOverlay(props: {
             pin={p}
             selected={p.id === openPinId}
             scorer={isScorer("pin", p.id, p.assignment)}
+            accent={p.assignment ? accents[p.assignment.team] : undefined}
             onClick={() => setOpenPinId(p.id === openPinId ? null : p.id)}
           />
         ))}
@@ -300,6 +309,7 @@ export function VideoOverlay(props: {
             assignment={openPin.assignment}
             lineups={props.lineups}
             teams={props.teams}
+            accents={accents}
             taken={taken}
             parked={parked}
             scorer={isScorer("pin", openPin.id, openPin.assignment)}
@@ -328,6 +338,7 @@ export function VideoOverlay(props: {
             assignment={trackAssign.get(openTrack.id) ?? null}
             lineups={props.lineups}
             teams={props.teams}
+            accents={accents}
             taken={taken}
             removeLabel="Unassign"
             parked={parked}

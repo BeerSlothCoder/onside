@@ -23,7 +23,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 dotenv.config({ path: resolve(REPO_ROOT, ".env") });
 
 const PORT = Number(process.env.PROXY_PORT ?? 8787);
-const DEFAULT_FIXTURES = [18209181, 18218149, 18213979, 18222446];
+const DEFAULT_FIXTURES = [18209181, 18218149, 18213979, 18222446, 18241006];
 const SCORES_POLL_MS = 15_000;
 const ODDS_POLL_MS = 60_000;
 const LINEUPS_PATH = resolve(REPO_ROOT, "crank/fixtures/lineups.json");

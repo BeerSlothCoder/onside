@@ -22,6 +22,7 @@ import { MatchView } from "./MatchView";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
+import { teamColors, type TeamColors } from "./teamColors";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -38,10 +39,13 @@ function PlayerRail(props: {
   team: string;
   players: Lineup;
   side: "left" | "right";
+  colors: TeamColors;
   /** viewport-px left position (computed from the video rect) */
   x: number;
   onTap: (p: { n: string; name: string }) => void;
 }) {
+  const { colors } = props;
+  const mirrored = props.side === "right";
   return (
     <div
       style={{
@@ -50,48 +54,94 @@ function PlayerRail(props: {
         left: props.x,
         width: 170,
         pointerEvents: "auto",
-        background: "rgba(10,16,22,0.88)",
+        background: "rgba(8,14,20,0.62)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
         border: "1px solid rgba(255,255,255,0.14)",
         borderRadius: 14,
-        padding: 10,
+        overflow: "hidden",
         zIndex: 2147483646,
         fontFamily: "system-ui, sans-serif",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.45)",
       }}
     >
-      <div style={{ fontSize: 11.5, fontWeight: 800, color: "#8aa0af", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 7, textAlign: "center" }}>
+      {/* kit-color header bar */}
+      <div
+        style={{
+          background: colors.badge,
+          color: colors.badgeText,
+          fontSize: 11.5,
+          fontWeight: 800,
+          textTransform: "uppercase",
+          letterSpacing: 0.8,
+          padding: "6px 10px",
+          textAlign: "center",
+          borderBottom: `2px solid ${colors.accent}`,
+          textShadow: "0 1px 2px rgba(0,0,0,0.35)",
+        }}
+      >
         {props.team}
       </div>
-      {(props.players.length ? props.players : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: `Player ${i + 1}` }))).map((p, i) => (
-        <button
-          key={i}
-          onClick={() => props.onTap(p)}
-          style={{
-            display: "block",
-            width: "100%",
-            marginBottom: 5,
-            border: "1px solid rgba(255,255,255,0.14)",
-            borderRadius: 8,
-            padding: "6px 9px",
-            fontSize: 12.5,
-            fontWeight: 700,
-            background: "rgba(255,255,255,0.06)",
-            color: "#eaf2f7",
-            cursor: "pointer",
-            textAlign: props.side === "left" ? "left" : "right",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
-          {props.side === "left" ? `${p.n} · ${shortName(p.name)}` : `${shortName(p.name)} · ${p.n}`}
-        </button>
-      ))}
+      <div style={{ padding: 7 }}>
+        {(props.players.length ? props.players : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: `Player ${i + 1}` }))).map((p, i) => (
+          <button
+            key={i}
+            onClick={() => props.onTap(p)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              flexDirection: mirrored ? "row-reverse" : "row",
+              width: "100%",
+              marginBottom: 3,
+              border: "none",
+              borderRadius: 8,
+              padding: "3px 5px",
+              background: i % 2 ? "transparent" : "rgba(255,255,255,0.045)",
+              cursor: "pointer",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                flexShrink: 0,
+                width: 21,
+                height: 21,
+                borderRadius: 999,
+                background: colors.badge,
+                color: colors.badgeText,
+                border: `1px solid ${colors.accent}`,
+                fontSize: 10.5,
+                fontWeight: 800,
+                lineHeight: "19px",
+                textAlign: "center",
+              }}
+            >
+              {p.n}
+            </span>
+            <span
+              style={{
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: "#eaf2f7",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                textAlign: mirrored ? "right" : "left",
+                flex: 1,
+              }}
+            >
+              {shortName(p.name)}
+            </span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
 const C = {
-  bg: "rgba(10,16,22,0.95)",
+  bg: "rgba(10,16,22,0.78)",
   stroke: "rgba(255,255,255,0.14)",
   cyan: "#22d3ee",
   green: "#34d399",
@@ -317,6 +367,7 @@ export function Overlay() {
             team={active.home}
             players={activeLineups?.home ?? []}
             side="left"
+            colors={teamColors(active.home, "home")}
             x={homeX}
             onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
           />
@@ -324,6 +375,7 @@ export function Overlay() {
             team={active.away}
             players={activeLineups?.away ?? []}
             side="right"
+            colors={teamColors(active.away, "away")}
             x={awayX}
             onTap={(p) => flash(`${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`)}
           />
@@ -341,6 +393,8 @@ export function Overlay() {
         fontFamily: "system-ui, sans-serif",
         color: C.ink,
         background: C.bg,
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
         border: `1px solid ${C.stroke}`,
         borderRadius: 14,
         boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
@@ -441,7 +495,11 @@ export function Overlay() {
                     }}
                   >
                     <div style={{ display: "flex", gap: 6, alignItems: "baseline" }}>
-                      <b>{g.home} vs {g.away}</b>
+                      <b>
+                        <span style={{ color: teamColors(g.home, "home").accent }}>{g.home}</span>
+                        <span style={{ color: C.dim, fontWeight: 400 }}> vs </span>
+                        <span style={{ color: teamColors(g.away, "away").accent }}>{g.away}</span>
+                      </b>
                       {started && (
                         <b style={{ color: lv.final ? C.dim : C.green }}>
                           {lv.score.home}–{lv.score.away}

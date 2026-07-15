@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
 import { clockMinute, LiveScore, OddsLine, sp1x2 } from "../chain/live";
+import { teamColors } from "./teamColors";
 
 const C = {
   stroke: "rgba(255,255,255,0.14)",
@@ -67,8 +68,10 @@ export function MatchView({
 
   const sp = sp1x2(spOdds ?? null);
   const started = !!live && live.phase > 1;
+  const homeC = teamColors(title.home, "home");
+  const awayC = teamColors(title.away, "away");
 
-  const marketBtn = (m: MarketView | undefined, side: number, label: string, spPrice?: number) => {
+  const marketBtn = (m: MarketView | undefined, side: number, label: string, spPrice?: number, accent?: string) => {
     if (!m) {
       return (
         <div style={{ ...sideBtn, opacity: 0.35, cursor: "default" }}>
@@ -89,12 +92,12 @@ export function MatchView({
           ...sideBtn,
           background: sel ? C.cyan : isOutcome ? "rgba(52,211,153,0.18)" : sideBtn.background,
           color: sel ? "#04222a" : isOutcome ? C.green : C.ink,
-          borderColor: sel ? C.cyan : my?.side === side ? C.green : C.stroke,
+          borderColor: sel ? C.cyan : my?.side === side ? C.green : accent ?? C.stroke,
           opacity: m.state !== "open" && !isOutcome ? 0.55 : 1,
           width: "100%",
         }}
       >
-        <div>{label}</div>
+        <div style={{ color: sel ? "#04222a" : isOutcome ? C.green : accent ?? C.ink }}>{label}</div>
         <div style={{ fontSize: 9.5, opacity: 0.85 }}>
           ${m.pools[side]?.toFixed(0) ?? 0}
           {odds ? ` · ${odds.toFixed(2)}x` : ""}
@@ -138,7 +141,7 @@ export function MatchView({
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
         <button onClick={onBack} style={{ ...sideBtn, padding: "4px 10px" }}>←</button>
         <b style={{ fontSize: 14 }}>
-          {title.home}{" "}
+          <span style={{ color: homeC.accent }}>{title.home}</span>{" "}
           {started ? (
             <span style={{ color: live.final ? C.ink : C.green }}>
               {live.score.home}–{live.score.away}
@@ -146,7 +149,7 @@ export function MatchView({
           ) : (
             <span style={{ color: C.dim }}>vs</span>
           )}{" "}
-          {title.away}
+          <span style={{ color: awayC.accent }}>{title.away}</span>
         </b>
         <span
           style={{
@@ -165,9 +168,9 @@ export function MatchView({
 
       {/* top: match result + totals strip */}
       <div style={{ display: "flex", gap: 6 }}>
-        <div style={{ flex: 1 }}>{marketBtn(matchResult, 0, title.home, sp?.[0])}</div>
+        <div style={{ flex: 1 }}>{marketBtn(matchResult, 0, title.home, sp?.[0], homeC.accent)}</div>
         <div style={{ flex: 1 }}>{marketBtn(matchResult, 1, "Draw", sp?.[1])}</div>
-        <div style={{ flex: 1 }}>{marketBtn(matchResult, 2, title.away, sp?.[2])}</div>
+        <div style={{ flex: 1 }}>{marketBtn(matchResult, 2, title.away, sp?.[2], awayC.accent)}</div>
       </div>
       {sp && (
         <div style={{ fontSize: 9, color: C.dim, marginTop: 3, textAlign: "right" }}>
@@ -188,7 +191,7 @@ export function MatchView({
       <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: C.dim, marginBottom: 3 }}>
-            ⚑ {title.home} corners over {homeCorners ? `${homeCorners.threshold}.5` : ""}
+            <span style={{ color: homeC.accent }}>⚑ {title.home}</span> corners over {homeCorners ? `${homeCorners.threshold}.5` : ""}
             {started && (
               <b style={{ color: C.green }}> · now {live.corners.home}</b>
             )}
@@ -204,7 +207,7 @@ export function MatchView({
             {started && (
               <b style={{ color: C.green }}>now {live.corners.away} · </b>
             )}
-            {title.away} corners {awayCorners ? `over ${awayCorners.threshold}.5 ` : ""}⚑
+            <span style={{ color: awayC.accent }}>{title.away} ⚑</span> corners {awayCorners ? `over ${awayCorners.threshold}.5` : ""}
           </div>
           <div style={{ display: "flex", gap: 6 }}>
             <div style={{ flex: 1 }}>{marketBtn(awayCorners, 0, "Over")}</div>
