@@ -85,3 +85,20 @@ export function sp1x2(lines: OddsLine[] | null): number[] | null {
   const l = lines?.find((x) => x.type === "1X2_PARTICIPANT_RESULT" && !x.period);
   return l && l.prices.length === 3 ? l.prices : null;
 }
+
+/** Full-match total-goals over/under line closest to `target` (2.5 default). */
+export function spTotalGoals(
+  lines: OddsLine[] | null,
+  target = 2.5
+): { line: number; over: number; under: number } | null {
+  const cands = (lines ?? []).filter(
+    (l) => l.type === "OVERUNDER_PARTICIPANT_GOALS" && !l.period && l.line != null
+  );
+  if (!cands.length) return null;
+  cands.sort((a, b) => Math.abs((a.line ?? 99) - target) - Math.abs((b.line ?? 99) - target));
+  const l = cands[0];
+  const oi = l.names.indexOf("over");
+  const ui = l.names.indexOf("under");
+  if (oi < 0 || ui < 0) return null;
+  return { line: l.line ?? target, over: l.prices[oi], under: l.prices[ui] };
+}

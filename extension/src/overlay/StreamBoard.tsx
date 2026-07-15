@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
-import { LiveScore, OddsLine, sp1x2 } from "../chain/live";
+import { LiveScore, OddsLine, sp1x2, spTotalGoals } from "../chain/live";
 import type { Rect } from "../tracking/geometry";
 import { teamColors, type TeamColors } from "./teamColors";
 import { BRAND, monoLabel } from "./brand";
@@ -55,7 +55,10 @@ export function StreamBoard(props: Props) {
   const matchResult = props.markets.find((m) => m.kind === "matchResult");
   const homeCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 7);
   const awayCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 8);
+  // total-goals over/under market: statOver carrying stat_key2 (goals sum)
+  const totalGoals = props.markets.find((m) => m.kind === "statOver" && m.statKey === 1);
   const sp = sp1x2(props.spOdds ?? null);
+  const tg = spTotalGoals(props.spOdds ?? null);
   const started = !!props.live && props.live.phase > 1;
 
   const glass: React.CSSProperties = {
@@ -288,23 +291,42 @@ export function StreamBoard(props: Props) {
     );
   };
 
-  const goalsChips = ["0", "1", "2", "3", "4", "5+"].map((g) => (
-    <span
-      key={g}
-      title="Exact-goals market — coming soon"
-      style={{
-        fontSize: 10,
-        fontWeight: 800,
-        color: C.dim,
-        border: `1px solid ${C.stroke}`,
-        borderRadius: 6,
-        padding: "2px 6px",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {g}
-    </span>
-  ));
+  // Total goals over/under, priced live by TxODDS StablePrice. Clickable once
+  // the on-chain total-goals market exists; until then shows live odds only.
+  const goalsSection = (
+    <>
+      <span style={{ ...monoLabel, fontSize: 9, color: C.dim, whiteSpace: "nowrap" }}>
+        goals o{totalGoals ? `${totalGoals.threshold}.5` : tg ? tg.line : "2.5"}
+      </span>
+      {totalGoals ? (
+        <>
+          {stripBtn(totalGoals, 0, "Over", C.cyan, tg?.over)}
+          {stripBtn(totalGoals, 1, "Under", C.cyan, tg?.under)}
+        </>
+      ) : (
+        ["Over", "Under"].map((lbl, i) => (
+          <span
+            key={lbl}
+            title="TxODDS live odds · on-chain total-goals market coming"
+            style={{
+              fontSize: 11,
+              fontWeight: 800,
+              color: C.dim,
+              border: `1px solid ${C.stroke}`,
+              borderRadius: 8,
+              padding: "3px 9px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {lbl}
+            <span style={{ fontSize: 9.5, color: tg ? C.cyan : C.dim }}>
+              {tg ? ` SP ${(i === 0 ? tg.over : tg.under).toFixed(2)}` : " soon"}
+            </span>
+          </span>
+        ))
+      )}
+    </>
+  );
 
   return (
     <>
@@ -383,8 +405,7 @@ export function StreamBoard(props: Props) {
             {awayCorners ? `${awayCorners.threshold}.5` : ""} corners ⚑
           </span>
           <span style={{ width: 1, alignSelf: "stretch", background: C.stroke }} />
-          <span style={{ ...monoLabel, fontSize: 9, color: C.dim }}>goals</span>
-          {goalsChips}
+          {goalsSection}
         </div>
         {slip && slip.m !== matchResult && miniSlip}
       </div>
