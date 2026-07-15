@@ -52,6 +52,7 @@ interface TrackedMarket {
   pda: PublicKey;
   kind: "matchResult" | "statOver";
   statKey: number;
+  statKey2: number | null; // set → prove the SUM of two stats (e.g. total goals)
   threshold: number;
 }
 
@@ -85,7 +86,8 @@ async function main() {
   const tracked = new Map<number, TrackedMarket[]>();
   for (const fx of fixtureIds) {
     const list: TrackedMarket[] = [];
-    for (const [kindByte, statKey] of [[0, 1], [1, 7], [1, 8]] as const) {
+    // kinds: matchResult (stat 1 vs 2), corners over (7/8), total goals (1 → sum 1+2)
+    for (const [kindByte, statKey] of [[0, 1], [1, 7], [1, 8], [1, 1]] as const) {
       const skBuf = Buffer.alloc(4);
       skBuf.writeUInt32LE(statKey);
       const [pda] = PublicKey.findProgramAddressSync(
@@ -98,6 +100,7 @@ async function main() {
           pda,
           kind: kindByte === 0 ? "matchResult" : "statOver",
           statKey,
+          statKey2: acc.statKey2 ?? null,
           threshold: acc.threshold,
         });
       } catch {
@@ -148,6 +151,9 @@ async function main() {
 
           // settle at full time
           if (FINAL_PHASES.has(phase) && state !== '{"settled":{}}' && seq !== undefined) {
+            // total-goals (statOver carrying stat_key2) proves the SUM of two
+            // stats; corners prove a single stat; matchResult the goal diff.
+            const twoStat = m.kind === "matchResult" || m.statKey2 != null;
             const outcome =
               m.kind === "matchResult"
                 ? (stats["1"] ?? 0) > (stats["2"] ?? 0)
@@ -155,13 +161,17 @@ async function main() {
                   : (stats["1"] ?? 0) < (stats["2"] ?? 0)
                     ? 2
                     : 1
-                : (stats[String(m.statKey)] ?? 0) > m.threshold
-                  ? 0
-                  : 1;
+                : m.statKey2 != null
+                  ? (stats[String(m.statKey)] ?? 0) + (stats[String(m.statKey2)] ?? 0) > m.threshold
+                    ? 0
+                    : 1
+                  : (stats[String(m.statKey)] ?? 0) > m.threshold
+                    ? 0
+                    : 1;
 
             const v = await txline.statValidation(
-              m.kind === "matchResult"
-                ? { fixtureId: fx, seq, statKey: 1, statKey2: 2 }
+              twoStat
+                ? { fixtureId: fx, seq, statKey: m.statKey, statKey2: m.statKey2 ?? 2 }
                 : { fixtureId: fx, seq, statKey: m.statKey }
             );
             const args: any = {

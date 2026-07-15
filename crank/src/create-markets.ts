@@ -28,6 +28,7 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const FIXTURE_ID = Number(process.argv[2]);
 const CORNERS_LINE = Number(process.argv[3] ?? 4);
 const AWAY_CORNERS_LINE = Number(process.argv[4] ?? CORNERS_LINE);
+const TOTAL_GOALS_LINE = Number(process.argv[5] ?? 2); // "over 2.5" total goals
 if (!FIXTURE_ID) {
   console.error("usage: create-markets.ts <fixtureId> [cornersLine]");
   process.exit(1);
@@ -91,6 +92,9 @@ async function main() {
   await create({ matchResult: {} }, 0, 1, 2, 0, "Match result (1X2)");
   await create({ statOver: {} }, 1, 7, null, CORNERS_LINE, `Home corners over ${CORNERS_LINE}.5`);
   await create({ statOver: {} }, 1, 8, null, AWAY_CORNERS_LINE, `Away corners over ${AWAY_CORNERS_LINE}.5`);
+  // total goals: statOver on stat 1 carrying stat_key2 = 2 → program proves the
+  // SUM (home + away goals) via Add. Threshold 2 = "over 2.5 total goals".
+  await create({ statOver: {} }, 1, 1, 2, TOTAL_GOALS_LINE, `Total goals over ${TOTAL_GOALS_LINE}.5`);
 }
 
 main().catch((e) => {

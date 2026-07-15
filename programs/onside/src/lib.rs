@@ -396,28 +396,39 @@ impl Market {
                     true,
                 ))
             }
-            MarketKind::StatOver => match outcome {
-                0 => Ok((
-                    TraderPredicate {
-                        threshold: self.threshold,
-                        comparison: Comparison::GreaterThan,
-                    },
-                    None,
-                    false,
-                )),
-                1 => Ok((
-                    TraderPredicate {
-                        threshold: self
-                            .threshold
-                            .checked_add(1)
-                            .ok_or(OnsideError::Overflow)?,
-                        comparison: Comparison::LessThan,
-                    },
-                    None,
-                    false,
-                )),
-                _ => Err(OnsideError::InvalidSide.into()),
-            },
+            // Single stat vs threshold (e.g. corners over N). When a second
+            // stat key is present the market proves the SUM of the two stats
+            // (e.g. total goals = home + away) via the Add op.
+            MarketKind::StatOver => {
+                let needs_b = self.stat_key2.is_some();
+                let op = if needs_b {
+                    Some(BinaryExpression::Add)
+                } else {
+                    None
+                };
+                match outcome {
+                    0 => Ok((
+                        TraderPredicate {
+                            threshold: self.threshold,
+                            comparison: Comparison::GreaterThan,
+                        },
+                        op,
+                        needs_b,
+                    )),
+                    1 => Ok((
+                        TraderPredicate {
+                            threshold: self
+                                .threshold
+                                .checked_add(1)
+                                .ok_or(OnsideError::Overflow)?,
+                            comparison: Comparison::LessThan,
+                        },
+                        op,
+                        needs_b,
+                    )),
+                    _ => Err(OnsideError::InvalidSide.into()),
+                }
+            }
         }
     }
 }
