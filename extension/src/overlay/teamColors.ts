@@ -43,8 +43,8 @@ const KITS: Record<string, TeamColors> = {
 };
 
 const FALLBACK: Record<"home" | "away", TeamColors> = {
-  home: { accent: "#22d3ee", badge: "#0b4b57", badgeText: "#a5f3fc" },
-  away: { accent: "#f0abfc", badge: "#5b1f66", badgeText: "#fae8ff" },
+  home: { accent: "#00DEF0", badge: "#00391F", badgeText: "#EDF4EF" },
+  away: { accent: "#00DEF0", badge: "#00391F", badgeText: "#EDF4EF" },
 };
 
 export function teamColors(teamName: string | undefined, side: "home" | "away"): TeamColors {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import type { Lineups } from "../types";
 import { VideoOverlay } from "./VideoOverlay";
+import { BRAND } from "../../overlay/brand";
 
 interface MatchCtx {
   fixtureId: number;
@@ -43,9 +44,9 @@ export function FrameTracker() {
           bottom: 12,
           zIndex: 2147483646,
           pointerEvents: "auto",
-          border: "1px solid rgba(255,255,255,0.25)",
-          background: "rgba(10,16,22,0.85)",
-          color: "#eaf2f7",
+          border: `1px solid ${BRAND.border}`,
+          background: BRAND.panel,
+          color: BRAND.text,
           borderRadius: 999,
           width: 34,
           height: 34,

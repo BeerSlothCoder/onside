@@ -28,7 +28,7 @@ import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
 import { teamColors } from "./teamColors";
 import { OnsideLogo } from "./OnsideLogo";
-import { BRAND, monoLabel } from "./brand";
+import { BRAND, UI_FONT, monoData, monoLabel } from "./brand";
 import lineupsRaw from "../chain/lineups.json";
 
 type Lineup = { n: string; name: string }[];
@@ -39,12 +39,12 @@ function shortName(full: string): string {
 }
 
 const C = {
-  bg: BRAND.bar,
-  stroke: BRAND.stroke,
+  bg: BRAND.panel,
+  stroke: BRAND.border,
   cyan: BRAND.cyan,
   green: BRAND.lime,
-  dim: BRAND.dim,
-  ink: BRAND.ink,
+  dim: BRAND.textMuted,
+  ink: BRAND.text,
 };
 
 /** Stale dev accounts from pre-release program layouts decode to garbage. */
@@ -297,13 +297,11 @@ export function Overlay() {
         maxHeight: "84vh",
         display: "flex",
         flexDirection: "column",
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: UI_FONT,
         color: C.ink,
         background: C.bg,
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
         border: `1px solid ${C.stroke}`,
-        borderRadius: 14,
+        borderRadius: BRAND.radiusCard,
         boxShadow: "0 12px 32px rgba(0,0,0,0.55)",
         overflow: "hidden",
         fontSize: 13,
@@ -318,7 +316,7 @@ export function Overlay() {
           gap: 9,
           padding: "9px 12px",
           cursor: "pointer",
-          background: "rgba(255,255,255,0.03)",
+          background: BRAND.surface,
           flexShrink: 0,
         }}
         onClick={() => setOpen(!open)}
@@ -330,9 +328,10 @@ export function Overlay() {
         <strong style={{ fontSize: 15, letterSpacing: 0.2 }}>
           on<span style={{ color: C.cyan }}>side</span>
         </strong>
-        <span style={{ ...monoLabel, fontSize: 8.5, color: C.dim }}>played&nbsp;live · devnet</span>
+        <span style={{ ...monoLabel, fontSize: 8, color: C.dim }}>played&nbsp;live · devnet</span>
         {bal && (
-          <span style={{ marginLeft: "auto", fontSize: 12.5, color: BRAND.lime, fontWeight: 800 }}>
+          // wallet info → data font, off-white (lime is reserved for selections)
+          <span style={{ ...monoData, marginLeft: "auto", fontSize: 12, fontWeight: 700, color: C.ink }}>
             ${bal.usdc.toFixed(2)}
           </span>
         )}
@@ -346,8 +345,8 @@ export function Overlay() {
             marginLeft: bal ? 4 : "auto",
             border: `1px solid ${tracking ? C.cyan : C.stroke}`,
             background: tracking ? C.cyan : "transparent",
-            color: tracking ? "#04222a" : C.ink,
-            borderRadius: 7,
+            color: tracking ? BRAND.bg : C.ink,
+            borderRadius: BRAND.radiusControl,
             fontSize: 11,
             fontWeight: 800,
             padding: "2px 7px",
@@ -378,13 +377,14 @@ export function Overlay() {
                     onClick={() => setActiveFixture(g.fixtureId)}
                     style={{
                       border: `1px solid ${sel ? C.cyan : C.stroke}`,
-                      background: sel ? "rgba(34,211,238,0.14)" : "rgba(255,255,255,0.04)",
+                      background: sel ? BRAND.surfaceHover : BRAND.surface,
                       color: sel ? C.cyan : C.ink,
-                      borderRadius: 999,
+                      borderRadius: BRAND.radiusControl,
                       padding: "3px 10px",
                       fontSize: 11,
-                      fontWeight: 700,
+                      fontWeight: 600,
                       cursor: "pointer",
+                      fontFamily: UI_FONT,
                     }}
                   >
                     {shortName(g.home)}–{shortName(g.away)}
@@ -424,10 +424,10 @@ export function Overlay() {
                     onClick={() => setActiveFixture(g.fixtureId)}
                     style={{
                       border: `1px solid ${C.stroke}`,
-                      borderRadius: 10,
+                      borderRadius: BRAND.radiusControl,
                       padding: "10px 12px",
                       marginBottom: 8,
-                      background: "rgba(255,255,255,0.03)",
+                      background: BRAND.surface,
                       cursor: "pointer",
                     }}
                   >
@@ -472,10 +472,10 @@ export function Overlay() {
             bottom: 10,
             left: 12,
             right: 12,
-            background: "rgba(4,34,42,0.95)",
+            background: BRAND.panel,
             border: `1px solid ${C.cyan}`,
             color: C.ink,
-            borderRadius: 8,
+            borderRadius: BRAND.radiusControl,
             padding: "8px 10px",
             fontSize: 12,
           }}

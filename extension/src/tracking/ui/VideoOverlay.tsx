@@ -8,15 +8,16 @@ import { PlayerChip } from "./PlayerChip";
 import { AssignPopover } from "./AssignPopover";
 import { teamColors } from "../../overlay/teamColors";
 import { surnameKey } from "../../chain/live";
+import { BRAND, UI_FONT, MONO_FONT } from "../../overlay/brand";
 
 const C = {
-  bg: "rgba(10,16,22,0.92)",
-  stroke: "rgba(255,255,255,0.14)",
-  cyan: "#22d3ee",
-  green: "#34d399",
-  amber: "#fbbf24",
-  dim: "#8aa0af",
-  ink: "#eaf2f7",
+  bg: BRAND.panel,
+  stroke: BRAND.border,
+  cyan: BRAND.cyan,
+  green: BRAND.lime, // "green" here = the lime selection colour
+  amber: BRAND.danger,
+  dim: BRAND.textMuted,
+  ink: BRAND.text,
 };
 
 function shortName(full: string): string {
@@ -26,13 +27,14 @@ function shortName(full: string): string {
 function probeBadge(probe: ReadbackResult | null): { label: string; color: string } {
   switch (probe) {
     case "ok":
-      return { label: "CV-ready ✓", color: C.green };
+      // available → cyan (live/available state)
+      return { label: "CV-ready", color: C.cyan };
     case "black":
-      return { label: "DRM stream — pins only", color: C.amber };
+      return { label: "DRM stream — pins only", color: C.dim };
     case "tainted":
-      return { label: "protected stream — pins only", color: C.amber };
+      return { label: "protected stream — pins only", color: C.dim };
     case "embedded":
-      return { label: "embedded player — pins only", color: C.amber };
+      return { label: "embedded player — pins only", color: C.dim };
     case "novideo":
       return { label: "waiting for video…", color: C.dim };
     default:
@@ -177,13 +179,14 @@ export function VideoOverlay(props: {
 
   const barBtn = (active: boolean): React.CSSProperties => ({
     border: `1px solid ${active ? C.cyan : C.stroke}`,
-    borderRadius: 8,
+    borderRadius: BRAND.radiusControl,
     padding: "5px 10px",
     fontSize: 11,
-    fontWeight: 800,
+    fontWeight: 600,
     cursor: "pointer",
-    background: active ? C.cyan : "rgba(255,255,255,0.06)",
-    color: active ? "#04222a" : C.ink,
+    background: active ? C.cyan : BRAND.surface,
+    color: active ? BRAND.bg : C.ink,
+    fontFamily: UI_FONT,
     whiteSpace: "nowrap",
   });
 
@@ -218,11 +221,9 @@ export function VideoOverlay(props: {
             const a = trackAssign.get(t.id) ?? null;
             const selected = t.id === openTrackId;
             const picked = isScorer("track", t.id, a);
-            const color = picked
-              ? C.green
-              : a
-                ? accents[a.team]
-                : "rgba(34,211,238,0.6)";
+            // lime only for the selected (next-scorer) marker; assigned keeps
+            // kit colour (team identity); unassigned is an available cyan ring
+            const color = picked ? C.green : a ? accents[a.team] : C.cyan;
             return (
               <div
                 key={`t${t.id}`}
@@ -243,13 +244,9 @@ export function VideoOverlay(props: {
                   style={{
                     position: "absolute",
                     inset: 0,
-                    border: `${picked ? 2.5 : 1.5}px solid ${color}`,
+                    // solid lime fill/border is enough for the pick — no glow
+                    border: `${picked ? 3 : 1.5}px solid ${color}`,
                     borderRadius: 4,
-                    boxShadow: picked
-                      ? "0 0 12px rgba(52,211,153,0.75)"
-                      : a
-                        ? "0 0 8px rgba(0,0,0,0.4)"
-                        : "none",
                   }}
                 />
                 <button
@@ -265,24 +262,24 @@ export function VideoOverlay(props: {
                     transform: "translate(-50%, -115%)",
                     pointerEvents: "auto",
                     cursor: "pointer",
-                    fontFamily: "system-ui, sans-serif",
+                    fontFamily: MONO_FONT,
                     whiteSpace: "nowrap",
                     ...(a || picked
                       ? {
-                          border: `1.5px solid ${color}`,
-                          background: selected ? color : "rgba(6,14,20,0.85)",
-                          color: selected ? "#04222a" : color,
-                          borderRadius: 999,
+                          border: `1px solid ${color}`,
+                          background: selected || picked ? color : BRAND.panel,
+                          color: selected || picked ? BRAND.bg : color,
+                          borderRadius: BRAND.radiusControl,
                           padding: "2px 8px",
                           fontSize: 10.5,
-                          fontWeight: 800,
+                          fontWeight: 700,
                         }
                       : {
                           width: 15,
                           height: 15,
                           borderRadius: 999,
-                          border: `2px solid ${selected ? C.cyan : "rgba(234,242,247,0.85)"}`,
-                          background: selected ? C.cyan : "rgba(6,14,20,0.5)",
+                          border: `2px solid ${selected ? C.cyan : C.cyan}`,
+                          background: selected ? C.cyan : BRAND.surfaceHover,
                           padding: 0,
                         }),
                   }}
@@ -376,14 +373,14 @@ export function VideoOverlay(props: {
               top: 8,
               left: "50%",
               transform: "translateX(-50%)",
-              background: "rgba(4,34,42,0.92)",
+              background: BRAND.panel,
               border: `1px solid ${C.cyan}`,
               color: C.ink,
-              borderRadius: 8,
+              borderRadius: BRAND.radiusControl,
               padding: "5px 12px",
               fontSize: 11.5,
-              fontWeight: 700,
-              fontFamily: "system-ui, sans-serif",
+              fontWeight: 600,
+              fontFamily: UI_FONT,
               pointerEvents: "none",
               whiteSpace: "nowrap",
             }}
@@ -406,9 +403,9 @@ export function VideoOverlay(props: {
           gap: 8,
           background: C.bg,
           border: `1px solid ${C.stroke}`,
-          borderRadius: 12,
+          borderRadius: BRAND.radiusCard,
           padding: "8px 10px",
-          fontFamily: "system-ui, sans-serif",
+          fontFamily: UI_FONT,
           boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
         }}
       >

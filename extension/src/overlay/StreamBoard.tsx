@@ -4,26 +4,21 @@ import { BetView, impliedOdds, MarketView } from "../chain/onside";
 import { Goalscorer, LiveScore, OddsLine, sp1x2, spTotalGoals, surnameKey } from "../chain/live";
 import type { Rect } from "../tracking/geometry";
 import { teamColors, type TeamColors } from "./teamColors";
-import { BRAND, monoLabel } from "./brand";
+import { BRAND, MONO_FONT, UI_FONT, monoData, monoLabel } from "./brand";
 
 /**
- * goal.live-style board rendered ON the stream:
- *   top strip    — match outcome (1X2) in one line, centered
- *   bottom strip — corners (live counts) + goals chips in one line
- *   side rails   — full-height player columns hugging the video edges
- * All geometry derives from the video rect the Overlay already polls.
+ * The board rendered ON the stream, per the Onside style guide:
+ *   top market strip — live timer/score + match result
+ *   bottom strip     — corners (live counts) + total goals
+ *   position slip    — confirmed positions, bottom centre, lime border
+ *   player rails     — full-height columns at the video edges (14% per side)
+ *
+ * Cyan = act or live. Lime = selected or resolved. Dark green frames the stream.
+ * No glassmorphism; panels are solid canvas at 95%. Shadows only on rails + slip.
  */
 
-const C = {
-  glass: BRAND.glass,
-  stroke: BRAND.stroke,
-  cyan: BRAND.cyan,
-  green: BRAND.lime,
-  dim: BRAND.dim,
-  ink: BRAND.ink,
-};
-
-const RAIL_W = 148;
+const RAIL_MIN = 128;
+const RAIL_MAX = 190;
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
@@ -50,196 +45,299 @@ export function StreamBoard(props: Props) {
   const { rect } = props;
   const homeC = teamColors(props.teams.home, "home");
   const awayC = teamColors(props.teams.away, "away");
-  const [slip, setSlip] = useState<{ m: MarketView; side: number; label: string } | null>(null);
+  const [sel, setSel] = useState<{ m: MarketView; side: number; label: string } | null>(null);
   const [stake, setStake] = useState(5);
 
   const matchResult = props.markets.find((m) => m.kind === "matchResult");
   const homeCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 7);
   const awayCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 8);
-  // total-goals over/under market: statOver carrying stat_key2 (goals sum)
   const totalGoals = props.markets.find((m) => m.kind === "statOver" && m.statKey === 1);
   const sp = sp1x2(props.spOdds ?? null);
   const tg = spTotalGoals(props.spOdds ?? null);
   const started = !!props.live && props.live.phase > 1;
 
-  const glass: React.CSSProperties = {
-    background: C.glass,
-    backdropFilter: "blur(10px)",
-    WebkitBackdropFilter: "blur(10px)",
-    border: `1px solid ${C.stroke}`,
-    boxShadow: "0 8px 22px rgba(0,0,0,0.45)",
-    fontFamily: "system-ui, sans-serif",
+  /** Dark overlay panel — solid canvas at 95%, thin technical border. */
+  const panel: React.CSSProperties = {
+    background: BRAND.panel,
+    border: `1px solid ${BRAND.border}`,
+    fontFamily: UI_FONT,
     pointerEvents: "auto",
   };
 
-  /** One market side as a compact strip button. */
-  const stripBtn = (
+  /** One market outcome as a strip cell: label above, quote below (data font). */
+  const cell = (
     m: MarketView | undefined,
     side: number,
     label: string,
     accent?: string,
-    spPrice?: number,
-    extra?: string
+    spPrice?: number
   ) => {
     if (!m) {
       return (
-        <span style={{ padding: "4px 9px", fontSize: 10, color: C.dim, whiteSpace: "nowrap" }}>
-          {label} <span style={{ fontSize: 8.5 }}>soon</span>
+        <span
+          style={{
+            ...monoLabel,
+            padding: "0 10px",
+            fontSize: 7.5,
+            color: BRAND.textMuted,
+            whiteSpace: "nowrap",
+            alignSelf: "center",
+          }}
+        >
+          {label} · soon
         </span>
       );
     }
     const odds = impliedOdds(m, side);
     const my = props.bets.get(m.address.toBase58());
-    const isOutcome = m.state === "settled" && m.outcome === side;
-    const sel = slip?.m.address.equals(m.address) && slip.side === side;
+    const resolved = m.state === "settled" && m.outcome === side;
+    const picked = sel?.m.address.equals(m.address) && sel.side === side;
     const open = m.state === "open" && !!props.wallet;
+    // lime only for the rare states: your selection, your position, the resolved outcome
+    const limeState = picked || resolved || my?.side === side;
     return (
       <button
         disabled={!open}
-        onClick={() => setSlip(sel ? null : { m, side, label })}
+        onClick={() => setSel(picked ? null : { m, side, label })}
+        title={m.state !== "open" ? `market ${m.state}` : `pool $${m.pools[side]?.toFixed(0) ?? 0}`}
         style={{
-          border: `1px solid ${sel ? C.cyan : my?.side === side ? C.green : accent ?? C.stroke}`,
-          background: sel ? C.cyan : isOutcome ? "rgba(52,211,153,0.16)" : "rgba(255,255,255,0.05)",
-          color: sel ? "#04222a" : isOutcome ? C.green : accent ?? C.ink,
-          borderRadius: 8,
-          padding: "3px 9px",
-          fontSize: 11.5,
-          fontWeight: 800,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 2,
+          minWidth: 62,
+          padding: "4px 10px",
+          border: "none",
+          borderRight: `1px solid ${BRAND.border}`,
+          background: picked ? BRAND.lime : "transparent",
+          color: picked ? BRAND.bg : BRAND.text,
           cursor: open ? "pointer" : "default",
-          opacity: !open && !isOutcome ? 0.6 : 1,
-          whiteSpace: "nowrap",
-          lineHeight: 1.25,
+          opacity: !open && !resolved ? 0.45 : 1,
+          fontFamily: UI_FONT,
         }}
-        title={`pool $${m.pools[side]?.toFixed(0) ?? 0}`}
+        onMouseEnter={(e) => {
+          if (open && !picked) e.currentTarget.style.background = BRAND.surfaceHover;
+        }}
+        onMouseLeave={(e) => {
+          if (!picked) e.currentTarget.style.background = "transparent";
+        }}
       >
-        {label}
-        {isOutcome ? " ✓" : ""}
-        {/* StablePrice is the meaningful market price; pool odds only once the
-            parimutuel pool has real liquidity (else it reads a misleading 1.00x) */}
-        {spPrice !== undefined ? (
-          <span style={{ fontSize: 10.5, fontWeight: 800, color: sel ? "#04222a" : C.cyan }}>
-            {" "}
-            {spPrice.toFixed(2)}
-          </span>
-        ) : odds ? (
-          <span style={{ fontSize: 9.5, fontWeight: 700, opacity: 0.85 }}> {odds.toFixed(2)}x</span>
-        ) : null}
-        {spPrice !== undefined && m.totalPool > 1 && odds ? (
-          <span style={{ fontSize: 8.5, color: C.dim }}> · pool {odds.toFixed(2)}x</span>
-        ) : null}
-        {extra ? <span style={{ fontSize: 9, color: C.dim }}> {extra}</span> : null}
+        <span
+          style={{
+            ...monoLabel,
+            fontSize: 7.5,
+            color: picked ? BRAND.bg : accent ?? BRAND.textMuted,
+            whiteSpace: "nowrap",
+            maxWidth: 90,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {label}
+          {resolved ? " ✓" : ""}
+        </span>
+        <span
+          style={{
+            ...monoData,
+            fontSize: 10,
+            fontWeight: 700,
+            color: picked ? BRAND.bg : limeState ? BRAND.lime : BRAND.text,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {spPrice !== undefined
+            ? spPrice.toFixed(2)
+            : odds
+              ? `${odds.toFixed(2)}x`
+              : "—"}
+        </span>
       </button>
     );
   };
 
-  /** Mini bet slip attached to whichever strip spawned it. */
-  const miniSlip = slip && slip.m.state === "open" && (
+  /** Strip shell: min 40px, canvas at 95%, 1px dividers between cells. */
+  const strip = (children: React.ReactNode) => (
     <div
       style={{
-        ...glass,
+        ...panel,
         display: "flex",
-        alignItems: "center",
-        gap: 6,
-        borderRadius: 10,
-        borderColor: C.cyan,
-        padding: "6px 9px",
-        marginTop: 6,
+        alignItems: "stretch",
+        minHeight: 40,
+        borderRadius: BRAND.radiusControl,
+        overflow: "hidden",
       }}
     >
-      <span style={{ fontSize: 11, color: C.dim, whiteSpace: "nowrap" }}>
-        <b style={{ color: C.ink }}>{slip.label}</b>
-      </span>
-      {[1, 5, 10, 25].map((v) => (
-        <button
-          key={v}
-          onClick={() => setStake(v)}
-          style={{
-            border: `1px solid ${C.stroke}`,
-            borderRadius: 7,
-            padding: "3px 7px",
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: "pointer",
-            background: stake === v ? C.cyan : "rgba(255,255,255,0.06)",
-            color: stake === v ? "#04222a" : C.ink,
-          }}
-        >
-          ${v}
-        </button>
-      ))}
-      <button
-        disabled={props.busy === "bet"}
-        onClick={() => {
-          props.onBet(slip.m, slip.side, stake);
-          setSlip(null);
-        }}
-        style={{
-          border: "none",
-          borderRadius: 7,
-          padding: "4px 10px",
-          fontSize: 11,
-          fontWeight: 800,
-          cursor: "pointer",
-          background: C.green,
-          color: "#022",
-        }}
-      >
-        {props.busy === "bet" ? "…" : "PLACE BET"}
-      </button>
-      <span style={{ cursor: "pointer", color: C.dim, fontSize: 12 }} onClick={() => setSlip(null)}>
-        ✕
-      </span>
+      {children}
     </div>
   );
 
-  /** Full-height player rail hugging one video edge (goal.live style). */
+  /** Stake selector + primary confirm — appears under the selected market. */
+  const confirmBar = sel && sel.m.state === "open" && (
+    <div
+      style={{
+        ...panel,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        borderRadius: BRAND.radiusControl,
+        padding: "6px 8px",
+        marginTop: 6,
+      }}
+    >
+      <span style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, whiteSpace: "nowrap" }}>
+        {sel.label}
+      </span>
+      {[1, 5, 10, 25].map((v) => {
+        const on = stake === v;
+        return (
+          <button
+            key={v}
+            onClick={() => setStake(v)}
+            style={{
+              ...monoData,
+              background: on ? BRAND.lime : "transparent",
+              color: on ? BRAND.bg : BRAND.text,
+              border: `1px solid ${on ? BRAND.lime : BRAND.border}`,
+              borderRadius: BRAND.radiusControl,
+              padding: "4px 8px",
+              fontSize: 11,
+              fontWeight: on ? 700 : 600,
+              cursor: "pointer",
+            }}
+          >
+            {v}
+          </button>
+        );
+      })}
+      <button
+        disabled={props.busy === "bet"}
+        onClick={() => {
+          props.onBet(sel.m, sel.side, stake);
+          setSel(null);
+        }}
+        style={{
+          background: BRAND.cyan,
+          color: BRAND.bg,
+          border: `1px solid ${BRAND.cyan}`,
+          borderRadius: BRAND.radiusControl,
+          height: 30,
+          padding: "0 14px",
+          fontFamily: UI_FONT,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+          opacity: props.busy === "bet" ? 0.4 : 1,
+          whiteSpace: "nowrap",
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.cyanHover)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.cyan)}
+      >
+        {props.busy === "bet" ? "SIGNING…" : "CONFIRM PREDICTION"}
+      </button>
+      <button
+        onClick={() => setSel(null)}
+        style={{
+          background: "transparent",
+          color: BRAND.textMuted,
+          border: `1px solid ${BRAND.border}`,
+          borderRadius: BRAND.radiusControl,
+          height: 30,
+          padding: "0 8px",
+          fontFamily: UI_FONT,
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+
+  /** Current-position slip — compact status, lime border. */
+  const positions = props.markets
+    .map((m) => ({ m, bet: props.bets.get(m.address.toBase58()) }))
+    .filter((x) => x.bet);
+  const positionSlip = positions.length > 0 && (
+    <div
+      style={{
+        ...panel,
+        border: `1px solid ${BRAND.lime}`,
+        borderRadius: BRAND.radiusControl,
+        boxShadow: "0 6px 18px rgba(0,0,0,0.55)",
+        padding: "5px 9px",
+        marginTop: 6,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <span style={{ ...monoLabel, fontSize: 8, color: BRAND.textMuted, whiteSpace: "nowrap" }}>
+        Current position{positions.length > 1 ? `s · ${positions.length}` : ""}
+      </span>
+      {positions.slice(0, 3).map(({ m, bet }) => (
+        <span key={m.address.toBase58()} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <span style={{ fontFamily: UI_FONT, fontSize: 10, fontWeight: 600, color: BRAND.text, whiteSpace: "nowrap" }}>
+            {m.sideLabels[bet!.side]}
+          </span>
+          <span style={{ ...monoData, fontSize: 12, fontWeight: 700, color: BRAND.lime }}>
+            {bet!.amount.toFixed(0)}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+
+  /** Full-height player rail at one video edge (14% per side, 18% small screens). */
   const rail = (side: "home" | "away") => {
     const colors: TeamColors = side === "home" ? homeC : awayC;
     const mirrored = side === "away";
     const players: Player[] = props.lineups[side].length
       ? props.lineups[side]
       : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: "" }));
-    // Prefer flanking the video in the letterbox bars; if a bar is too narrow
-    // (or in fullscreen, where the video fills the screen) tuck the rail just
-    // INSIDE the video edge. Both sides use the same rule → always symmetric.
+    const pct = window.innerWidth < 1400 ? 0.18 : 0.14;
+    const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
+    // Flank the letterbox bars when there's room; otherwise tuck just inside the
+    // video edge (fullscreen). Same rule both sides → always symmetric.
     const inset = 6;
     const leftBar = rect.left;
     const rightBar = window.innerWidth - (rect.left + rect.width);
-    const flank = leftBar >= RAIL_W + 4 && rightBar >= RAIL_W + 4;
+    const flank = leftBar >= railW + 4 && rightBar >= railW + 4;
     const x =
       side === "home"
         ? flank
-          ? rect.left - RAIL_W - 4
+          ? rect.left - railW - 4
           : rect.left + inset
         : flank
           ? rect.left + rect.width + 4
-          : rect.left + rect.width - RAIL_W - inset;
-    const rowH = Math.min(44, Math.max(24, (rect.height - 34) / players.length - 3));
+          : rect.left + rect.width - railW - inset;
+    const rowH = Math.min(40, Math.max(22, (rect.height - 30) / players.length - 2));
     return (
       <div
         style={{
-          ...glass,
+          ...panel,
           position: "fixed",
           left: x,
           top: rect.top,
-          width: RAIL_W,
+          width: railW,
           height: rect.height,
-          borderRadius: 12,
+          borderRadius: BRAND.radiusCard,
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
           zIndex: 2147483646,
         }}
       >
+        {/* team header — the one place kit colour carries team identity */}
         <div
           style={{
+            ...monoLabel,
             background: colors.badge,
             color: colors.badgeText,
-            borderBottom: `2px solid ${colors.accent}`,
-            fontSize: 11,
-            fontWeight: 800,
-            textTransform: "uppercase",
-            letterSpacing: 0.7,
+            borderBottom: `1px solid ${BRAND.border}`,
+            fontSize: 9,
+            fontWeight: 700,
             padding: "6px 8px",
             textAlign: "center",
             whiteSpace: "nowrap",
@@ -250,120 +348,77 @@ export function StreamBoard(props: Props) {
         >
           {props.teams[side]}
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-evenly", padding: "3px 5px" }}>
-          {players.map((p, i) => (
-            <button
-              key={i}
-              onClick={() => props.onTapPlayer({ n: p.n, name: p.name || `Player ${p.n}` })}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                flexDirection: mirrored ? "row-reverse" : "row",
-                height: rowH,
-                border: "none",
-                borderRadius: 7,
-                padding: "0 5px",
-                background: i % 2 ? "transparent" : "rgba(255,255,255,0.05)",
-                cursor: "pointer",
-                overflow: "hidden",
-              }}
-            >
-              <span
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-evenly" }}>
+          {players.map((p, i) => {
+            const gs = p.name ? props.goalscorers?.[surnameKey(p.name)] : undefined;
+            return (
+              <button
+                key={i}
+                onClick={() => props.onTapPlayer({ n: p.n, name: p.name || `Player ${p.n}` })}
                 style={{
-                  flexShrink: 0,
-                  width: 20,
-                  height: 20,
-                  borderRadius: 999,
-                  background: colors.badge,
-                  color: colors.badgeText,
-                  border: `1px solid ${colors.accent}`,
-                  fontSize: 10,
-                  fontWeight: 800,
-                  lineHeight: "18px",
-                  textAlign: "center",
-                }}
-              >
-                {p.n}
-              </span>
-              <span
-                style={{
-                  flex: 1,
-                  fontSize: 11.5,
-                  fontWeight: 700,
-                  color: C.ink,
-                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  flexDirection: mirrored ? "row-reverse" : "row",
+                  height: rowH,
+                  border: "none",
+                  borderBottom: `1px solid ${BRAND.border}`,
+                  padding: "0 6px",
+                  background: BRAND.surface,
+                  cursor: "pointer",
                   overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  textAlign: mirrored ? "right" : "left",
                 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.surfaceHover)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.surface)}
               >
-                {p.name ? shortName(p.name) : ""}
-              </span>
-              {(() => {
-                const gs = p.name ? props.goalscorers?.[surnameKey(p.name)] : undefined;
-                return gs ? (
+                <span
+                  style={{
+                    ...monoData,
+                    flexShrink: 0,
+                    width: 16,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: BRAND.textMuted,
+                    textAlign: "center",
+                  }}
+                >
+                  {p.n}
+                </span>
+                <span
+                  style={{
+                    flex: 1,
+                    fontFamily: UI_FONT,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    letterSpacing: "-0.01em",
+                    color: BRAND.text,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    textAlign: mirrored ? "right" : "left",
+                  }}
+                >
+                  {p.name ? shortName(p.name) : ""}
+                </span>
+                {gs && (
                   <span
-                    title={`${gs.name} — anytime goalscorer odds (the-odds-api)`}
-                    style={{
-                      flexShrink: 0,
-                      fontSize: 10,
-                      fontWeight: 800,
-                      color: C.green,
-                      fontVariantNumeric: "tabular-nums",
-                    }}
+                    title={`${gs.name} — anytime goalscorer quote`}
+                    style={{ ...monoData, flexShrink: 0, fontSize: 9, color: BRAND.lime }}
                   >
-                    ⚽{gs.odds.toFixed(2)}
+                    {gs.odds.toFixed(2)}
                   </span>
-                ) : null;
-              })()}
-            </button>
-          ))}
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   };
 
-  // Total goals over/under, priced live by TxODDS StablePrice. Clickable once
-  // the on-chain total-goals market exists; until then shows live odds only.
-  const goalsSection = (
-    <>
-      <span style={{ ...monoLabel, fontSize: 9, color: C.dim, whiteSpace: "nowrap" }}>
-        goals o{totalGoals ? `${totalGoals.threshold}.5` : tg ? tg.line : "2.5"}
-      </span>
-      {totalGoals ? (
-        <>
-          {stripBtn(totalGoals, 0, "Over", C.cyan, tg?.over)}
-          {stripBtn(totalGoals, 1, "Under", C.cyan, tg?.under)}
-        </>
-      ) : (
-        ["Over", "Under"].map((lbl, i) => (
-          <span
-            key={lbl}
-            title="TxODDS live odds · on-chain total-goals market coming"
-            style={{
-              fontSize: 11,
-              fontWeight: 800,
-              color: C.dim,
-              border: `1px solid ${C.stroke}`,
-              borderRadius: 8,
-              padding: "3px 9px",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {lbl}
-            <span style={{ fontSize: 9.5, color: tg ? C.cyan : C.dim }}>
-              {tg ? ` SP ${(i === 0 ? tg.over : tg.under).toFixed(2)}` : " soon"}
-            </span>
-          </span>
-        ))
-      )}
-    </>
-  );
-
   return (
     <>
-      {/* top strip: match outcome, centered — clear of broadcaster scorebugs */}
+      {/* TOP MARKET STRIP — live state + match result */}
       <div
         style={{
           position: "fixed",
@@ -377,30 +432,51 @@ export function StreamBoard(props: Props) {
           pointerEvents: "none",
         }}
       >
-        <div
-          style={{
-            ...glass,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            borderRadius: 999,
-            padding: "5px 10px",
-          }}
-        >
-          {started && props.live && (
-            <b style={{ fontSize: 11.5, color: props.live.final ? C.dim : C.green, whiteSpace: "nowrap" }}>
-              {props.live.score.home}–{props.live.score.away}
-              <span style={{ fontWeight: 400, fontSize: 9.5 }}> {props.live.phaseLabel}</span>
-            </b>
-          )}
-          {stripBtn(matchResult, 0, props.teams.home, homeC.accent, sp?.[0] ?? undefined)}
-          {stripBtn(matchResult, 1, "Draw", undefined, sp?.[1] ?? undefined)}
-          {stripBtn(matchResult, 2, props.teams.away, awayC.accent, sp?.[2] ?? undefined)}
-        </div>
-        {slip?.m === matchResult && miniSlip}
+        {strip(
+          <>
+            {/* live cell: cyan dot + timer (cyan = live) */}
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "0 10px",
+                borderRight: `1px solid ${BRAND.border}`,
+              }}
+            >
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: 999,
+                  background: started && !props.live?.final ? BRAND.cyan : BRAND.textMuted,
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ ...monoData, fontSize: 10, fontWeight: 700, color: BRAND.cyan, whiteSpace: "nowrap" }}>
+                {started && props.live
+                  ? `${props.live.phaseLabel}${
+                      props.live.clock.running
+                        ? ` ${Math.min(Math.floor(props.live.clock.seconds / 60) + 1, 120)}'`
+                        : ""
+                    }`
+                  : "PRE"}
+              </span>
+              {started && props.live && (
+                <span style={{ ...monoData, fontSize: 10, fontWeight: 700, color: BRAND.text }}>
+                  {props.live.score.home}–{props.live.score.away}
+                </span>
+              )}
+            </span>
+            {cell(matchResult, 0, props.teams.home, homeC.accent, sp?.[0] ?? undefined)}
+            {cell(matchResult, 1, "Draw", undefined, sp?.[1] ?? undefined)}
+            {cell(matchResult, 2, props.teams.away, awayC.accent, sp?.[2] ?? undefined)}
+          </>
+        )}
+        {sel?.m === matchResult && confirmBar}
       </div>
 
-      {/* bottom strip: corners with live counts + goals (soon), one line */}
+      {/* BOTTOM STRIP — corners + total goals, then position slip */}
       <div
         style={{
           position: "fixed",
@@ -409,38 +485,67 @@ export function StreamBoard(props: Props) {
           transform: "translate(-50%, -100%)",
           zIndex: 2147483646,
           display: "flex",
-          flexDirection: "column-reverse",
+          flexDirection: "column",
           alignItems: "center",
           pointerEvents: "none",
         }}
       >
-        <div
-          style={{
-            ...glass,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            borderRadius: 999,
-            padding: "5px 10px",
-          }}
-        >
-          <span style={{ fontSize: 10, fontWeight: 800, color: homeC.accent, whiteSpace: "nowrap" }}>
-            ⚑ corners o{homeCorners ? `${homeCorners.threshold}.5` : ""}
-            {started && props.live ? ` · ${props.live.corners.home}` : ""}
-          </span>
-          {stripBtn(homeCorners, 0, "Over", homeC.accent)}
-          {stripBtn(homeCorners, 1, "Under", homeC.accent)}
-          <span style={{ width: 1, alignSelf: "stretch", background: C.stroke }} />
-          {stripBtn(awayCorners, 0, "Over", awayC.accent)}
-          {stripBtn(awayCorners, 1, "Under", awayC.accent)}
-          <span style={{ fontSize: 10, fontWeight: 800, color: awayC.accent, whiteSpace: "nowrap" }}>
-            {started && props.live ? `${props.live.corners.away} · ` : ""}o
-            {awayCorners ? `${awayCorners.threshold}.5` : ""} corners ⚑
-          </span>
-          <span style={{ width: 1, alignSelf: "stretch", background: C.stroke }} />
-          {goalsSection}
-        </div>
-        {slip && slip.m !== matchResult && miniSlip}
+        {strip(
+          <>
+            <span
+              style={{
+                ...monoLabel,
+                display: "flex",
+                alignItems: "center",
+                fontSize: 7.5,
+                color: BRAND.textMuted,
+                padding: "0 8px",
+                borderRight: `1px solid ${BRAND.border}`,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {shortName(props.teams.home)} corners o{homeCorners ? `${homeCorners.threshold}.5` : ""}
+              {started && props.live ? ` · ${props.live.corners.home}` : ""}
+            </span>
+            {cell(homeCorners, 0, "Over", homeC.accent)}
+            {cell(homeCorners, 1, "Under", homeC.accent)}
+            {cell(awayCorners, 0, "Over", awayC.accent)}
+            {cell(awayCorners, 1, "Under", awayC.accent)}
+            <span
+              style={{
+                ...monoLabel,
+                display: "flex",
+                alignItems: "center",
+                fontSize: 7.5,
+                color: BRAND.textMuted,
+                padding: "0 8px",
+                borderRight: `1px solid ${BRAND.border}`,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {started && props.live ? `${props.live.corners.away} · ` : ""}
+              {shortName(props.teams.away)} corners o{awayCorners ? `${awayCorners.threshold}.5` : ""}
+            </span>
+            <span
+              style={{
+                ...monoLabel,
+                display: "flex",
+                alignItems: "center",
+                fontSize: 7.5,
+                color: BRAND.textMuted,
+                padding: "0 8px",
+                borderRight: `1px solid ${BRAND.border}`,
+                whiteSpace: "nowrap",
+              }}
+            >
+              Goals o{totalGoals ? `${totalGoals.threshold}.5` : tg ? tg.line : "2.5"}
+            </span>
+            {cell(totalGoals, 0, "Over", undefined, tg?.over)}
+            {cell(totalGoals, 1, "Under", undefined, tg?.under)}
+          </>
+        )}
+        {sel && sel.m !== matchResult && confirmBar}
+        {positionSlip}
       </div>
 
       {rail("home")}

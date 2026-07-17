@@ -3,28 +3,30 @@ import type { Keypair } from "@solana/web3.js";
 import { BetView, impliedOdds, MarketView } from "../chain/onside";
 import { clockMinute, LiveScore, OddsLine, sp1x2 } from "../chain/live";
 import { teamColors } from "./teamColors";
-import { BRAND } from "./brand";
+import { BRAND, UI_FONT } from "./brand";
 
 const C = {
-  stroke: BRAND.stroke,
+  stroke: BRAND.border,
   cyan: BRAND.cyan,
   green: BRAND.lime,
-  red: "#f87171",
-  dim: BRAND.dim,
-  ink: BRAND.ink,
-  pitch: "rgba(20,80,40,0.35)",
+  red: BRAND.danger,
+  dim: BRAND.textMuted,
+  ink: BRAND.text,
+  pitch: BRAND.deepGreen,
 };
 
+// secondary control per the style guide: surface fill, thin border, 6px radius
 const sideBtn: React.CSSProperties = {
   border: `1px solid ${C.stroke}`,
-  borderRadius: 8,
+  borderRadius: BRAND.radiusControl,
   padding: "8px 6px",
-  fontWeight: 700,
+  fontWeight: 600,
   fontSize: 12,
   cursor: "pointer",
-  background: "rgba(255,255,255,0.06)",
+  background: BRAND.surface,
   color: C.ink,
   textAlign: "center",
+  fontFamily: UI_FONT,
 };
 
 export interface MatchViewProps {
@@ -91,20 +93,20 @@ export function MatchView({
         onClick={() => setSlip(sel ? null : { m, side })}
         style={{
           ...sideBtn,
-          background: sel ? C.cyan : isOutcome ? "rgba(52,211,153,0.18)" : sideBtn.background,
-          color: sel ? "#04222a" : isOutcome ? C.green : C.ink,
+          background: sel ? BRAND.lime : isOutcome ? BRAND.surfaceHover : sideBtn.background,
+          color: sel ? BRAND.bg : isOutcome ? C.green : C.ink,
           borderColor: sel ? C.cyan : my?.side === side ? C.green : accent ?? C.stroke,
           opacity: m.state !== "open" && !isOutcome ? 0.55 : 1,
           width: "100%",
         }}
       >
-        <div style={{ color: sel ? "#04222a" : isOutcome ? C.green : accent ?? C.ink }}>{label}</div>
+        <div style={{ color: sel ? BRAND.bg : isOutcome ? C.green : accent ?? C.ink }}>{label}</div>
         <div style={{ fontSize: 9.5, opacity: 0.85 }}>
           ${m.pools[side]?.toFixed(0) ?? 0}
           {odds ? ` · ${odds.toFixed(2)}x` : ""}
         </div>
         {spPrice !== undefined && (
-          <div style={{ fontSize: 9, color: sel ? "#04222a" : C.cyan }}>
+          <div style={{ fontSize: 9, color: sel ? BRAND.bg : C.cyan }}>
             SP {spPrice.toFixed(2)}
           </div>
         )}
@@ -127,7 +129,7 @@ export function MatchView({
           <button
             onClick={() => onClaim(m)}
             disabled={busy === m.address.toBase58()}
-            style={{ ...sideBtn, padding: "3px 10px", background: C.green, color: "#022" }}
+            style={{ ...sideBtn, padding: "3px 10px", background: BRAND.cyan, color: BRAND.bg, border: `1px solid ${BRAND.cyan}` }}
           >
             {busy === m.address.toBase58() ? "…" : "CLAIM"}
           </button>
@@ -218,7 +220,7 @@ export function MatchView({
         </div>
       </div>
 
-      {/* bet slip */}
+      {/* prediction confirm */}
       {slip && slip.m.state === "open" && (
         <div
           style={{
@@ -226,7 +228,7 @@ export function MatchView({
             display: "flex",
             gap: 6,
             alignItems: "center",
-            background: "rgba(34,211,238,0.08)",
+            background: BRAND.surface,
             border: `1px solid ${C.cyan}`,
             borderRadius: 10,
             padding: 8,
@@ -242,8 +244,8 @@ export function MatchView({
               style={{
                 ...sideBtn,
                 padding: "4px 8px",
-                background: stake === v ? C.cyan : "rgba(255,255,255,0.06)",
-                color: stake === v ? "#04222a" : C.ink,
+                background: stake === v ? BRAND.lime : BRAND.surface,
+                color: stake === v ? BRAND.bg : C.ink,
               }}
             >
               ${v}
@@ -255,9 +257,9 @@ export function MatchView({
               setSlip(null);
             }}
             disabled={busy === "bet"}
-            style={{ ...sideBtn, marginLeft: "auto", background: C.green, color: "#022" }}
+            style={{ ...sideBtn, marginLeft: "auto", background: BRAND.cyan, color: BRAND.bg, border: `1px solid ${BRAND.cyan}`, fontWeight: 600 }}
           >
-            {busy === "bet" ? "…" : "PLACE BET"}
+            {busy === "bet" ? "SIGNING…" : "CONFIRM PREDICTION"}
           </button>
         </div>
       )}

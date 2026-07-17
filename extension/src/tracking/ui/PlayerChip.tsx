@@ -1,11 +1,12 @@
 import React from "react";
 import type { Pin } from "../types";
+import { BRAND, MONO_FONT } from "../../overlay/brand";
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
 }
 
-const TEAM_COLOR: Record<string, string> = { home: "#22d3ee", away: "#f0abfc" };
+const TEAM_COLOR: Record<string, string> = { home: BRAND.cyan, away: BRAND.cyan };
 
 /**
  * A chip anchored at a normalized position inside the video-content layer.
@@ -21,11 +22,12 @@ export function PlayerChip(props: {
   onClick: () => void;
 }) {
   const { pin } = props;
+  // lime = the next-scorer selection; kit accent for assigned; cyan otherwise
   const color = props.scorer
-    ? "#34d399"
+    ? BRAND.lime
     : pin.assignment
       ? props.accent ?? TEAM_COLOR[pin.assignment.team]
-      : "#eaf2f7";
+      : BRAND.cyan;
   return (
     <div
       style={{
@@ -48,16 +50,16 @@ export function PlayerChip(props: {
         style={{
           pointerEvents: "auto",
           cursor: "pointer",
-          border: `1.5px solid ${color}`,
-          background: props.selected ? color : "rgba(6,14,20,0.85)",
-          color: props.selected ? "#04222a" : color,
-          borderRadius: 999,
+          border: `1px solid ${color}`,
+          background: props.selected || props.scorer ? color : BRAND.panel,
+          color: props.selected || props.scorer ? BRAND.bg : color,
+          borderRadius: BRAND.radiusControl,
           padding: "3px 9px",
           fontSize: 11,
-          fontWeight: 800,
-          fontFamily: "system-ui, sans-serif",
+          fontWeight: 700,
+          fontFamily: MONO_FONT,
           whiteSpace: "nowrap",
-          boxShadow: props.scorer ? "0 0 10px rgba(52,211,153,0.7)" : "0 2px 8px rgba(0,0,0,0.6)",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.6)",
         }}
       >
         {props.scorer ? "⚽ " : ""}

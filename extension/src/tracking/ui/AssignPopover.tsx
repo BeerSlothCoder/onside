@@ -1,15 +1,16 @@
 import React, { useState } from "react";
 import type { Assignment, Lineups, Team } from "../types";
+import { BRAND, UI_FONT } from "../../overlay/brand";
 
 const C = {
-  bg: "rgba(10,16,22,0.97)",
-  stroke: "rgba(255,255,255,0.14)",
-  cyan: "#22d3ee",
-  pink: "#f0abfc",
-  green: "#34d399",
-  dim: "#8aa0af",
-  ink: "#eaf2f7",
-  red: "#f87171",
+  bg: BRAND.panel,
+  stroke: BRAND.border,
+  cyan: BRAND.cyan,
+  pink: BRAND.cyan, // no pink in the system — away also reads cyan when no kit
+  green: BRAND.lime,
+  dim: BRAND.textMuted,
+  ink: BRAND.text,
+  red: BRAND.danger,
 };
 
 function shortName(full: string): string {
@@ -88,7 +89,7 @@ export function AssignPopover(props: {
                 padding: "3px 6px",
                 fontSize: 10.5,
                 fontWeight: 700,
-                background: "rgba(255,255,255,0.05)",
+                background: BRAND.surface,
                 color: takenElsewhere ? C.dim : C.ink,
                 opacity: takenElsewhere ? 0.4 : 1,
                 cursor: takenElsewhere ? "default" : "pointer",
@@ -108,12 +109,12 @@ export function AssignPopover(props: {
 
   const btn: React.CSSProperties = {
     border: `1px solid ${C.stroke}`,
-    borderRadius: 7,
+    borderRadius: BRAND.radiusControl,
     padding: "5px 10px",
     fontSize: 11,
     fontWeight: 700,
     cursor: "pointer",
-    background: "rgba(255,255,255,0.06)",
+    background: BRAND.surface,
     color: C.ink,
   };
 
@@ -124,11 +125,11 @@ export function AssignPopover(props: {
         ...btn,
         width: "100%",
         border: `1px solid ${C.green}`,
-        background: props.scorer ? C.green : "rgba(52,211,153,0.1)",
-        color: props.scorer ? "#04221a" : C.green,
+        background: props.scorer ? C.green : BRAND.surface,
+        color: props.scorer ? BRAND.bg : C.green,
       }}
     >
-      {props.scorer ? "⚽ Remove next-scorer pick" : "⚽ Pick as next scorer (demo)"}
+      {props.scorer ? "⚽ Remove next-scorer pick" : "⚽ Pick as next scorer"}
     </button>
   );
 
@@ -149,7 +150,7 @@ export function AssignPopover(props: {
         borderRadius: 12,
         padding: 10,
         zIndex: 5,
-        fontFamily: "system-ui, sans-serif",
+        fontFamily: UI_FONT,
         color: C.ink,
         boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
       }}

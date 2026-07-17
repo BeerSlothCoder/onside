@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import type { ReadbackResult } from "../types";
 import type { DetectorState } from "../useDetector";
 import { detectorReady, tensorCount } from "../detector";
+import { BRAND, MONO_FONT } from "../../overlay/brand";
 
 /**
  * Tiny diagnostics panel (shift-click the 🎯 label to toggle):
@@ -32,13 +33,13 @@ export function DebugHud(props: {
         bottom: 64,
         zIndex: 2147483646,
         pointerEvents: "none",
-        background: "rgba(0,0,0,0.82)",
-        border: "1px solid rgba(34,211,238,0.4)",
-        color: "#9fe8ff",
-        fontFamily: "ui-monospace, monospace",
+        background: BRAND.panel,
+        border: `1px solid ${BRAND.border}`,
+        color: BRAND.cyan,
+        fontFamily: MONO_FONT,
         fontSize: 10.5,
         padding: "7px 10px",
-        borderRadius: 8,
+        borderRadius: BRAND.radiusControl,
         lineHeight: 1.65,
         whiteSpace: "nowrap",
       }}
