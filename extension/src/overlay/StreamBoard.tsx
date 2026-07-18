@@ -38,9 +38,20 @@ interface Props {
   spOdds?: OddsLine[] | null;
   goalscorers?: Record<string, Goalscorer> | null;
   hideRails?: boolean;
+  /** fullscreen: show the extra in-play micro-markets in the rail gap */
+  isFs?: boolean;
   onBet: (m: MarketView, side: number, stake: number) => void;
   onTapPlayer: (p: Player) => void;
 }
+
+/** Simulated in-play micro-markets (no on-chain settlement yet) — the roadmap
+ *  for player/event-level markets as TxLINE signed data expands. */
+const IN_PLAY_PROPS: { key: string; label: string; odds: number }[] = [
+  { key: "sot", label: "Next shot on target", odds: 2.1 },
+  { key: "g10", label: "Goal in next 10′", odds: 3.4 },
+  { key: "cor", label: "Next corner", odds: 1.85 },
+  { key: "card", label: "Card in next 10′", odds: 4.2 },
+];
 
 export function StreamBoard(props: Props) {
   const { rect } = props;
@@ -49,6 +60,8 @@ export function StreamBoard(props: Props) {
   const [swapped, setSwapped] = useState(false);
   // next-goalscorer pick (display-only demo market) — one player at a time
   const [scorer, setScorer] = useState<{ side: Side; n: string; name: string } | null>(null);
+  // simulated in-play prop selections (display-only), keyed "side:key"
+  const [pickedProps, setPickedProps] = useState<Set<string>>(new Set());
 
   const matchResult = props.markets.find((m) => m.kind === "matchResult");
   const homeCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 7);
@@ -68,10 +81,14 @@ export function StreamBoard(props: Props) {
   const XI = 11;
   const HEADER_H = 28;
   const CORNER_H = 66;
-  // the rail fills the video height MINUS the corner panel that sits below it,
-  // so rows stay tall (original size) and the bottom player is never covered
-  const railH = Math.max(HEADER_H + XI * 26, rect.height - CORNER_H - 12);
-  const rowH = Math.max(26, Math.min(56, (railH - HEADER_H) / XI));
+  const PROP_ROW = 26;
+  // in fullscreen, reserve room below the rail for the in-play prop markets
+  const propsH = props.isFs ? 22 + IN_PLAY_PROPS.length * PROP_ROW : 0;
+  const belowRail = CORNER_H + (propsH ? propsH + 6 : 0) + 12;
+  const rowH = Math.max(24, Math.min(46, (rect.height - HEADER_H - belowRail) / XI));
+  const railH = HEADER_H + XI * rowH; // rail fits exactly the 11 players
+  const propsTop = (top: number) => top + railH + 6;
+  const cornerTop = (top: number) => top + railH + 6 + (propsH ? propsH + 6 : 0);
   const pct = window.innerWidth < 1400 ? 0.14 : 0.115;
   const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
   const railX = (pos: "left" | "right") => {
@@ -366,13 +383,80 @@ export function StreamBoard(props: Props) {
     );
   };
 
-  /** Corner market panel, tucked directly under its rail; team-coloured. */
+  /** Simulated in-play micro-markets, in the rail gap (fullscreen only). */
+  const propsPanel = (pos: "left" | "right", side: Side) => {
+    const c = colorOf(side);
+    return (
+      <div style={{ position: "absolute", left: railX(pos), top: propsTop(rect.top), width: railW, zIndex: 2147483646 }}>
+        <div style={{ ...panel, borderRadius: BRAND.radiusControl, borderTop: `2px solid ${c.accent}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <div style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, padding: "4px 7px", borderBottom: `1px solid ${BRAND.border}`, whiteSpace: "nowrap" }}>
+            in-play · sim
+          </div>
+          {IN_PLAY_PROPS.map((pr) => {
+            const on = pickedProps.has(`${side}:${pr.key}`);
+            return (
+              <button
+                key={pr.key}
+                onClick={() =>
+                  setPickedProps((s) => {
+                    const n = new Set(s);
+                    const id = `${side}:${pr.key}`;
+                    n.has(id) ? n.delete(id) : n.add(id);
+                    return n;
+                  })
+                }
+                title="Simulated in-play market (display only)"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 6,
+                  height: PROP_ROW,
+                  padding: "0 8px",
+                  border: "none",
+                  borderBottom: `1px solid ${BRAND.border}`,
+                  background: on ? BRAND.lime : `${c.accent}18`,
+                  cursor: "pointer",
+                  overflow: "hidden",
+                }}
+                onMouseEnter={(e) => {
+                  if (!on) e.currentTarget.style.background = `${c.accent}30`;
+                }}
+                onMouseLeave={(e) => {
+                  if (!on) e.currentTarget.style.background = `${c.accent}18`;
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: UI_FONT,
+                    fontSize: 9,
+                    fontWeight: 600,
+                    color: on ? BRAND.bg : BRAND.text,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {pr.label}
+                </span>
+                <span style={{ ...monoData, flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: on ? BRAND.bg : BRAND.cyan }}>
+                  {pr.odds.toFixed(2)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  /** Corner market panel, below the rail (and props); team-coloured. */
   const cornerPanel = (pos: "left" | "right", side: Side) => {
     const m = cornersOf(side);
     const c = colorOf(side);
     const nowCount = started && props.live ? props.live.corners[side] : null;
     return (
-      <div style={{ position: "absolute", left: railX(pos), top: rect.top + railH + 6, width: railW, zIndex: 2147483646 }}>
+      <div style={{ position: "absolute", left: railX(pos), top: cornerTop(rect.top), width: railW, zIndex: 2147483646 }}>
         <div style={{ ...panel, borderRadius: BRAND.radiusControl, borderTop: `2px solid ${c.accent}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div
             style={{
@@ -475,6 +559,8 @@ export function StreamBoard(props: Props) {
         <>
           {rail("left", leftSide)}
           {rail("right", rightSide)}
+          {props.isFs && propsPanel("left", leftSide)}
+          {props.isFs && propsPanel("right", rightSide)}
           {cornerPanel("left", leftSide)}
           {cornerPanel("right", rightSide)}
         </>

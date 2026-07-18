@@ -247,6 +247,7 @@ function IframeBoard({ ctx }: { ctx: MatchCtx }) {
       spOdds={spOdds}
       goalscorers={goalscorers}
       hideRails={hideRails}
+      isFs
       onBet={submitBet}
       onTapPlayer={() => undefined /* rail click tags the next scorer in-board */}
     />

@@ -70,6 +70,7 @@ export function Overlay() {
   const [toast, setToast] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
   const [hideRails, setHideRails] = useState(false);
+  const [isFs, setIsFs] = useState(false);
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
   const [goalscorers, setGoalscorers] = useState<Record<string, Goalscorer> | null>(null);
@@ -118,6 +119,19 @@ export function Overlay() {
     onWalletChange(refresh);
     return () => clearInterval(t);
   }, [refresh]);
+
+  // this frame's fullscreen state (top-frame players like YouTube)
+  useEffect(() => {
+    const sync = () =>
+      setIsFs(!!(document.fullscreenElement || (document as any).webkitFullscreenElement));
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    document.addEventListener("webkitfullscreenchange", sync);
+    return () => {
+      document.removeEventListener("fullscreenchange", sync);
+      document.removeEventListener("webkitfullscreenchange", sync);
+    };
+  }, []);
 
   // rails collapse — persisted so the in-iframe fullscreen board respects it too
   useEffect(() => {
@@ -300,6 +314,7 @@ export function Overlay() {
         spOdds={spOdds}
         goalscorers={goalscorers}
         hideRails={hideRails}
+        isFs={isFs}
         onBet={submitBet}
         onTapPlayer={(p) => {
           const gs = goalscorers?.[surnameKey(p.name)];
