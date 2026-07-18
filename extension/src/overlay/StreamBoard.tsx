@@ -16,8 +16,8 @@ import { BRAND, MONO_FONT, UI_FONT, monoData, monoLabel } from "./brand";
  * Cyan = act or live. Lime = selected or resolved. Dark green frames the stream.
  */
 
-const RAIL_MIN = 150;
-const RAIL_MAX = 230;
+const RAIL_MIN = 116;
+const RAIL_MAX = 158;
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
@@ -72,7 +72,7 @@ export function StreamBoard(props: Props) {
   // so rows stay tall (original size) and the bottom player is never covered
   const railH = Math.max(HEADER_H + XI * 26, rect.height - CORNER_H - 12);
   const rowH = Math.max(26, Math.min(56, (railH - HEADER_H) / XI));
-  const pct = window.innerWidth < 1400 ? 0.18 : 0.15;
+  const pct = window.innerWidth < 1400 ? 0.14 : 0.115;
   const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
   const railX = (pos: "left" | "right") => {
     const leftBar = rect.left;
