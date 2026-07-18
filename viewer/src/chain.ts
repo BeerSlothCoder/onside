@@ -6,6 +6,13 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import idl from "../../extension/src/chain/idl.json";
 import fixturesRaw from "../../extension/src/chain/fixtures.json";
+import settlementsRaw from "../../crank/fixtures/settlements.json";
+
+/** market address → recorded settle tx (persisted by the crank at settle time). */
+export const KNOWN_SETTLEMENTS = settlementsRaw as Record<
+  string,
+  { sig: string; blockTime: number | null; outcome: number | null }
+>;
 
 export const RPC_URL = "https://api.devnet.solana.com";
 export const ONSIDE_PROGRAM_ID = new PublicKey("DhFnzPPgyg77EczxLpmfuT2msD1yHzBLjWfz32q9A4B8");
@@ -124,18 +131,35 @@ export interface Settlement {
  * "Instruction: Settle".
  */
 export async function findSettlement(market: PublicKey): Promise<Settlement | null> {
-  const sigs = await connection.getSignaturesForAddress(market, { limit: 25 });
-  let fetched = 0;
-  for (const s of sigs) {
-    if (s.err) continue;
-    if (fetched++ >= 12) break;
-    const tx = await connection.getTransaction(s.signature, {
-      maxSupportedTransactionVersion: 0,
-    });
-    const logs = tx?.meta?.logMessages ?? [];
-    if (logs.some((l) => l.includes("Instruction: Settle"))) {
-      return { signature: s.signature, blockTime: tx?.blockTime ?? null, logs };
+  // 1) Prefer the crank-recorded signature — link straight to the explorer,
+  //    which keeps a full archive even after the public RPC prunes history.
+  const known = KNOWN_SETTLEMENTS[market.toBase58()];
+  if (known) {
+    let logs: string[] = [];
+    try {
+      const tx = await connection.getTransaction(known.sig, { maxSupportedTransactionVersion: 0 });
+      logs = tx?.meta?.logMessages ?? [];
+    } catch {
+      /* pruned from RPC — the explorer link still works */
     }
+    return { signature: known.sig, blockTime: known.blockTime, logs };
+  }
+  // 2) Otherwise scan the market's signatures oldest-first (settle sits early).
+  //    Works for recently-settled markets; old ones may be pruned → null.
+  try {
+    const sigs = await connection.getSignaturesForAddress(market, { limit: 1000 });
+    let fetched = 0;
+    for (const s of [...sigs].reverse()) {
+      if (s.err) continue;
+      if (fetched++ > 40) break;
+      const tx = await connection.getTransaction(s.signature, { maxSupportedTransactionVersion: 0 });
+      const logs = tx?.meta?.logMessages ?? [];
+      if (logs.some((l) => l.includes("Instruction: Settle"))) {
+        return { signature: s.signature, blockTime: tx?.blockTime ?? null, logs };
+      }
+    }
+  } catch {
+    /* RPC rate-limit / pruned */
   }
   return null;
 }

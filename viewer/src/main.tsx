@@ -88,7 +88,12 @@ function ProofBlock({ market }: { market: MarketRow }) {
   if (state === "none" || !proof)
     return (
       <div style={{ marginTop: 8, fontSize: 11.5, color: C.dim }}>
-        settlement tx not found in recent history (RPC limit) — check the market address on the explorer.
+        The public devnet RPC prunes transaction history after a few days, so the settle
+        transaction isn't returned here — but it's permanently on-chain.{" "}
+        <a href={explorerAddr(market.address.toBase58())} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>
+          View this market on the Solana Explorer ↗
+        </a>{" "}
+        — the settle transaction (CPI into txoracle) is in its full history.
       </div>
     );
 
@@ -108,26 +113,34 @@ function ProofBlock({ market }: { market: MarketRow }) {
           <span style={{ color: C.dim }}> · {new Date(proof.blockTime * 1000).toUTCString()}</span>
         )}
       </div>
-      <div style={{ color: C.dim, margin: "6px 0 4px" }}>
+      {oracleLines.length === 0 && (
+        <div style={{ color: C.dim, marginTop: 4 }}>
+          Logs pruned from the RPC — open the settle tx above on the Solana Explorer to see the
+          full txoracle proof-verification.
+        </div>
+      )}
+      <div style={{ color: C.dim, margin: "6px 0 4px", display: oracleLines.length ? "block" : "none" }}>
         The settle instruction carries the TxLINE fixture summary and Merkle paths; the Onside
         program CPIs into the txoracle program, which verifies them against its on-chain daily
         roots before the outcome is accepted:
       </div>
-      <pre
-        style={{
-          background: "rgba(0,0,0,0.45)",
-          border: `1px solid ${C.stroke}`,
-          borderRadius: 8,
-          padding: 10,
-          overflowX: "auto",
-          maxHeight: 260,
-          fontSize: 10.5,
-          lineHeight: 1.5,
-          color: "#b9d6e2",
-        }}
-      >
-        {oracleLines.join("\n")}
-      </pre>
+      {oracleLines.length > 0 && (
+        <pre
+          style={{
+            background: "rgba(0,0,0,0.45)",
+            border: `1px solid ${C.stroke}`,
+            borderRadius: 8,
+            padding: 10,
+            overflowX: "auto",
+            maxHeight: 260,
+            fontSize: 10.5,
+            lineHeight: 1.5,
+            color: "#b9d6e2",
+          }}
+        >
+          {oracleLines.join("\n")}
+        </pre>
+      )}
     </div>
   );
 }

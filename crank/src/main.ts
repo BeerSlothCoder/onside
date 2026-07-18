@@ -12,7 +12,7 @@
 import dotenv from "dotenv";
 import * as anchor from "@coral-xyz/anchor";
 import { ComputeBudgetProgram, Keypair, PublicKey } from "@solana/web3.js";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -62,6 +62,22 @@ function toBytes32(value: string | number[]): number[] {
 }
 const toProofNodes = (ns: Array<{ hash: string | number[]; isRightSibling: boolean }>) =>
   ns.map((n) => ({ hash: toBytes32(n.hash), isRightSibling: n.isRightSibling }));
+
+// Persist settle-tx signatures so the viewer can link straight to the Solana
+// Explorer (whose archive keeps them forever) — the public RPC prunes old
+// transaction history after a few days, breaking any live signature lookup.
+const SETTLEMENTS_PATH = resolve(REPO_ROOT, "crank/fixtures/settlements.json");
+function recordSettlement(market: string, sig: string, outcome: number): void {
+  try {
+    const all = existsSync(SETTLEMENTS_PATH)
+      ? JSON.parse(readFileSync(SETTLEMENTS_PATH, "utf8"))
+      : {};
+    all[market] = { sig, blockTime: Math.floor(Date.now() / 1000), outcome };
+    writeFileSync(SETTLEMENTS_PATH, JSON.stringify(all, null, 2) + "\n");
+  } catch (e: any) {
+    console.warn("recordSettlement failed:", e.message);
+  }
+}
 
 async function main() {
   const fixtures = process.argv.slice(2).map(Number).filter(Boolean);
@@ -220,6 +236,7 @@ async function main() {
               .preInstructions([ComputeBudgetProgram.setComputeUnitLimit({ units: 1_400_000 })])
               .rpc();
             console.log(`  ✅ settled ${m.kind} → outcome ${outcome} (${sig.slice(0, 16)}…)`);
+            recordSettlement(m.pda.toBase58(), sig, outcome);
             done.add(key);
           }
           if (state === '{"settled":{}}') done.add(key);
