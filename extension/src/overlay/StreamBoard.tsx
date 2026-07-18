@@ -316,7 +316,7 @@ export function StreamBoard(props: Props) {
       <div
         style={{
           ...panel,
-          position: "fixed",
+          position: "absolute",
           left: x,
           top: rect.top,
           width: railW,
@@ -421,7 +421,7 @@ export function StreamBoard(props: Props) {
       {/* TOP MARKET STRIP — live state + match result */}
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           left: rect.left + rect.width / 2,
           top: rect.top + 8,
           transform: "translateX(-50%)",
@@ -479,7 +479,7 @@ export function StreamBoard(props: Props) {
       {/* BOTTOM STRIP — corners + total goals, then position slip */}
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           left: rect.left + rect.width / 2,
           top: rect.top + rect.height - 44,
           transform: "translate(-50%, -100%)",

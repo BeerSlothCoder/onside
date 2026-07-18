@@ -28,7 +28,7 @@ export function DebugHud(props: {
   return (
     <div
       style={{
-        position: "fixed",
+        position: "absolute",
         left: 16,
         bottom: 64,
         zIndex: 2147483646,

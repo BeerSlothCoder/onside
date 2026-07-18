@@ -39,7 +39,7 @@ export function FrameTracker() {
         onClick={() => setOn(true)}
         title="Onside — pin players on the video"
         style={{
-          position: "fixed",
+          position: "absolute",
           left: 12,
           bottom: 12,
           zIndex: 2147483646,

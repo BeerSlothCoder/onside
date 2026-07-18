@@ -13,10 +13,17 @@ const IS_TOP = window.top === window;
 function makeContainer(): HTMLDivElement {
   const container = document.createElement("div");
   container.id = CONTAINER_ID;
+  // Full-viewport cover so child panels can be positioned ABSOLUTELY within it.
+  // In fullscreen we reparent this root into the fullscreen element; because the
+  // children are absolute (relative to this root) rather than fixed (relative to
+  // the viewport / a transformed ancestor), they land correctly even when the
+  // player's fullscreen wrapper carries a CSS transform.
   Object.assign(container.style, {
     position: "fixed",
     top: "0",
-    right: "0",
+    left: "0",
+    width: "100%",
+    height: "100%",
     zIndex: "2147483646",
     pointerEvents: "none",
   });

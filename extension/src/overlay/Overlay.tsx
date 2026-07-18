@@ -291,6 +291,11 @@ export function Overlay() {
     )}
     <div
       style={{
+        // anchored top-right within the full-cover overlay root (absolute, so
+        // it survives fullscreen reparenting like the on-stream panels)
+        position: "absolute",
+        top: 0,
+        right: 0,
         pointerEvents: "auto",
         margin: 16,
         width: open ? (active ? 480 : 320) : "auto",

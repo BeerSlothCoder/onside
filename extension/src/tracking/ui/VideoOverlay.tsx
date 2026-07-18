@@ -206,7 +206,7 @@ export function VideoOverlay(props: {
           setPinMode(false);
         }}
         style={{
-          position: "fixed",
+          position: "absolute",
           display: "none",
           pointerEvents: pinMode ? "auto" : "none",
           cursor: pinMode ? "crosshair" : "default",
@@ -393,7 +393,7 @@ export function VideoOverlay(props: {
       {/* floating control strip (bottom-left, clear of the market panel on the right) */}
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           left: 16,
           bottom: 16,
           zIndex: 2147483646,
