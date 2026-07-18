@@ -69,6 +69,7 @@ export function Overlay() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
+  const [hideRails, setHideRails] = useState(false);
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
   const [goalscorers, setGoalscorers] = useState<Record<string, Goalscorer> | null>(null);
@@ -117,6 +118,26 @@ export function Overlay() {
     onWalletChange(refresh);
     return () => clearInterval(t);
   }, [refresh]);
+
+  // rails collapse — persisted so the in-iframe fullscreen board respects it too
+  useEffect(() => {
+    try {
+      chrome.storage?.local?.get("onside_hide_rails", (r) => setHideRails(!!r?.onside_hide_rails));
+    } catch {
+      /* orphaned script */
+    }
+  }, []);
+  const toggleRails = () => {
+    setHideRails((h) => {
+      const next = !h;
+      try {
+        chrome.storage?.local?.set({ onside_hide_rails: next });
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   // live scores from the local data proxy (renders nothing when offline)
   useEffect(() => {
@@ -278,13 +299,14 @@ export function Overlay() {
         live={live[String(active.fixtureId)] ?? null}
         spOdds={spOdds}
         goalscorers={goalscorers}
+        hideRails={hideRails}
         onBet={submitBet}
         onTapPlayer={(p) => {
           const gs = goalscorers?.[surnameKey(p.name)];
           flash(
             gs
-              ? `${shortName(p.name)} — anytime scorer ⚽ ${gs.odds.toFixed(2)} (the-odds-api). Player markets need player-level proofs.`
-              : `${shortName(p.name)} — player markets need player-level on-chain proofs (display only)`
+              ? `⚽ ${shortName(p.name)} tagged next scorer — anytime ${gs.odds.toFixed(2)} (display only)`
+              : `⚽ ${shortName(p.name)} tagged next scorer (display only)`
           );
         }}
       />
@@ -359,6 +381,26 @@ export function Overlay() {
           }}
         >
           🎯
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleRails();
+          }}
+          title={hideRails ? "Show player rails" : "Hide player rails"}
+          style={{
+            marginLeft: 4,
+            border: `1px solid ${hideRails ? C.stroke : C.cyan}`,
+            background: hideRails ? "transparent" : C.cyan,
+            color: hideRails ? C.ink : BRAND.bg,
+            borderRadius: BRAND.radiusControl,
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "2px 7px",
+            cursor: "pointer",
+          }}
+        >
+          👥
         </button>
         <span style={{ marginLeft: 2, fontSize: 12, color: C.dim }}>{open ? "▴" : "▾"}</span>
       </div>

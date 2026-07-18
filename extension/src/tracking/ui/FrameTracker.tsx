@@ -130,6 +130,22 @@ function IframeBoard({ ctx }: { ctx: MatchCtx }) {
   const [proxyLineup, setProxyLineup] = useState<LineupPair | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [videoRect, setVideoRect] = useState<Rect | null>(null);
+  const [hideRails, setHideRails] = useState(false);
+
+  // mirror the top-frame rails collapse toggle
+  useEffect(() => {
+    const apply = (v: unknown) => setHideRails(!!v);
+    try {
+      chrome.storage.local.get("onside_hide_rails").then((r) => apply(r.onside_hide_rails));
+      const listener = (changes: Record<string, chrome.storage.StorageChange>, area: string) => {
+        if (area === "local" && changes.onside_hide_rails) apply(changes.onside_hide_rails.newValue);
+      };
+      chrome.storage.onChanged.addListener(listener);
+      return () => chrome.storage.onChanged.removeListener(listener);
+    } catch {
+      /* orphaned */
+    }
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -230,8 +246,9 @@ function IframeBoard({ ctx }: { ctx: MatchCtx }) {
       live={live[String(ctx.fixtureId)] ?? null}
       spOdds={spOdds}
       goalscorers={goalscorers}
+      hideRails={hideRails}
       onBet={submitBet}
-      onTapPlayer={() => undefined /* player markets need player-level proofs */}
+      onTapPlayer={() => undefined /* rail click tags the next scorer in-board */}
     />
   );
 }

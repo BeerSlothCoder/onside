@@ -9,14 +9,15 @@ import { BRAND, MONO_FONT, UI_FONT, monoData, monoLabel } from "./brand";
 /**
  * The board rendered ON the stream, goal.live-style, per the Onside style guide:
  *   top strip     — match outcome (large) + total goals, live timer/score
- *   bottom-left   — left team's corners      bottom-right — right team's corners
- *   player rails  — half-width columns at the video edges, odds above the name
+ *   player rails  — narrow columns at the video edges, odds above the name;
+ *                   click a player to tag them the next goalscorer (green)
+ *   corner panels — sit directly under each rail (team-coloured)
  *   ⇄ change sides swaps rails + corners at half time (teams switch ends)
  * Cyan = act or live. Lime = selected or resolved. Dark green frames the stream.
  */
 
-const RAIL_MIN = 84;
-const RAIL_MAX = 124;
+const RAIL_MIN = 76;
+const RAIL_MAX = 112;
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
@@ -36,6 +37,7 @@ interface Props {
   live?: LiveScore | null;
   spOdds?: OddsLine[] | null;
   goalscorers?: Record<string, Goalscorer> | null;
+  hideRails?: boolean;
   onBet: (m: MarketView, side: number, stake: number) => void;
   onTapPlayer: (p: Player) => void;
 }
@@ -45,6 +47,8 @@ export function StreamBoard(props: Props) {
   const [sel, setSel] = useState<{ m: MarketView; side: number; label: string } | null>(null);
   const [stake, setStake] = useState(5);
   const [swapped, setSwapped] = useState(false);
+  // next-goalscorer pick (display-only demo market) — one player at a time
+  const [scorer, setScorer] = useState<{ side: Side; n: string; name: string } | null>(null);
 
   const matchResult = props.markets.find((m) => m.kind === "matchResult");
   const homeCorners = props.markets.find((m) => m.kind === "statOver" && m.statKey === 7);
@@ -57,11 +61,31 @@ export function StreamBoard(props: Props) {
   const colorOf = (s: Side) => teamColors(props.teams[s], s);
   const cornersOf = (s: Side) => (s === "home" ? homeCorners : awayCorners);
 
-  // change-sides: which team is drawn on the left / right of the stream
   const leftSide: Side = swapped ? "away" : "home";
   const rightSide: Side = swapped ? "home" : "away";
 
-  /** Dark overlay panel — solid canvas at 95%, thin technical border. */
+  // shared rail/corner geometry so the corner panel tucks right under its rail
+  const XI = 11;
+  const HEADER_H = 26;
+  const CORNER_H = 66;
+  const rowH = Math.max(18, Math.min(24, (rect.height - HEADER_H - CORNER_H - 14) / XI));
+  const railH = HEADER_H + XI * rowH;
+  const pct = window.innerWidth < 1400 ? 0.09 : 0.075;
+  const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
+  const railX = (pos: "left" | "right") => {
+    const leftBar = rect.left;
+    const rightBar = window.innerWidth - (rect.left + rect.width);
+    const flank = leftBar >= railW + 4 && rightBar >= railW + 4;
+    const inset = 6;
+    return pos === "left"
+      ? flank
+        ? rect.left - railW - 4
+        : rect.left + inset
+      : flank
+        ? rect.left + rect.width + 4
+        : rect.left + rect.width - railW - inset;
+  };
+
   const panel: React.CSSProperties = {
     background: BRAND.panel,
     border: `1px solid ${BRAND.border}`,
@@ -69,14 +93,14 @@ export function StreamBoard(props: Props) {
     pointerEvents: "auto",
   };
 
-  /** A market outcome cell. `big` = top strip (match result / goals). */
+  /** A market outcome cell. `big` = top strip; `bg` = team-tinted (corners). */
   const cell = (
     m: MarketView | undefined,
     side: number,
     label: string,
-    opts: { accent?: string; spPrice?: number; big?: boolean } = {}
+    opts: { accent?: string; spPrice?: number; big?: boolean; bg?: string } = {}
   ) => {
-    const { accent, spPrice, big } = opts;
+    const { accent, spPrice, big, bg } = opts;
     if (!m) {
       return (
         <span
@@ -99,6 +123,7 @@ export function StreamBoard(props: Props) {
     const picked = sel?.m.address.equals(m.address) && sel.side === side;
     const open = m.state === "open" && !!props.wallet;
     const limeState = picked || resolved || my?.side === side;
+    const rest = picked ? BRAND.lime : bg ? `${bg}26` : "transparent";
     return (
       <button
         disabled={!open}
@@ -110,21 +135,21 @@ export function StreamBoard(props: Props) {
           alignItems: "center",
           justifyContent: "center",
           gap: big ? 3 : 2,
-          minWidth: big ? 76 : 52,
+          minWidth: big ? 76 : 50,
           padding: big ? "6px 13px" : "3px 9px",
           border: "none",
           borderRight: `1px solid ${BRAND.border}`,
-          background: picked ? BRAND.lime : "transparent",
+          background: rest,
           color: picked ? BRAND.bg : BRAND.text,
           cursor: open ? "pointer" : "default",
           opacity: !open && !resolved ? 0.45 : 1,
           fontFamily: UI_FONT,
         }}
         onMouseEnter={(e) => {
-          if (open && !picked) e.currentTarget.style.background = BRAND.surfaceHover;
+          if (open && !picked) e.currentTarget.style.background = bg ? `${bg}3e` : BRAND.surfaceHover;
         }}
         onMouseLeave={(e) => {
-          if (!picked) e.currentTarget.style.background = "transparent";
+          if (!picked) e.currentTarget.style.background = rest;
         }}
       >
         <span
@@ -132,7 +157,7 @@ export function StreamBoard(props: Props) {
             ...monoLabel,
             fontSize: big ? 11 : 7,
             fontWeight: big ? 700 : 400,
-            letterSpacing: big ? "0.06em" : "0.18em",
+            letterSpacing: big ? "0.06em" : "0.14em",
             color: picked ? BRAND.bg : accent ?? BRAND.textMuted,
             whiteSpace: "nowrap",
             maxWidth: big ? 140 : 90,
@@ -163,20 +188,8 @@ export function StreamBoard(props: Props) {
     sel &&
     sel.m.address.equals(m.address) &&
     sel.m.state === "open" && (
-      <div
-        style={{
-          ...panel,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          borderRadius: BRAND.radiusControl,
-          padding: "6px 8px",
-          marginTop: 6,
-        }}
-      >
-        <span style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, whiteSpace: "nowrap" }}>
-          {sel.label}
-        </span>
+      <div style={{ ...panel, display: "flex", alignItems: "center", gap: 6, borderRadius: BRAND.radiusControl, padding: "6px 8px", marginTop: 6 }}>
+        <span style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, whiteSpace: "nowrap" }}>{sel.label}</span>
         {[1, 5, 10, 25].map((v) => {
           const onSel = stake === v;
           return (
@@ -224,54 +237,29 @@ export function StreamBoard(props: Props) {
         </button>
         <button
           onClick={() => setSel(null)}
-          style={{
-            background: "transparent",
-            color: BRAND.textMuted,
-            border: `1px solid ${BRAND.border}`,
-            borderRadius: BRAND.radiusControl,
-            height: 30,
-            padding: "0 8px",
-            fontFamily: UI_FONT,
-            fontSize: 12,
-            cursor: "pointer",
-          }}
+          style={{ background: "transparent", color: BRAND.textMuted, border: `1px solid ${BRAND.border}`, borderRadius: BRAND.radiusControl, height: 30, padding: "0 8px", fontFamily: UI_FONT, fontSize: 12, cursor: "pointer" }}
         >
           ✕
         </button>
       </div>
     );
 
-  /** Half-width player rail; number badge + (odds above name). */
+  /** Player rail; number badge + (odds above name). Click = tag next scorer. */
   const rail = (pos: "left" | "right", side: Side) => {
     const colors: TeamColors = colorOf(side);
     const mirrored = pos === "right";
     const players: Player[] = props.lineups[side].length
       ? props.lineups[side]
-      : Array.from({ length: 11 }, (_, i) => ({ n: String(i + 1), name: "" }));
-    const pct = window.innerWidth < 1400 ? 0.11 : 0.085; // ~half of the old 14%
-    const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
-    const inset = 6;
-    const leftBar = rect.left;
-    const rightBar = window.innerWidth - (rect.left + rect.width);
-    const flank = leftBar >= railW + 4 && rightBar >= railW + 4;
-    const x =
-      pos === "left"
-        ? flank
-          ? rect.left - railW - 4
-          : rect.left + inset
-        : flank
-          ? rect.left + rect.width + 4
-          : rect.left + rect.width - railW - inset;
-    const rowH = Math.min(34, Math.max(24, (rect.height - 26) / players.length - 2));
+      : Array.from({ length: XI }, (_, i) => ({ n: String(i + 1), name: "" }));
     return (
       <div
         style={{
           ...panel,
           position: "absolute",
-          left: x,
+          left: railX(pos),
           top: rect.top,
           width: railW,
-          height: rect.height,
+          height: railH,
           borderRadius: BRAND.radiusCard,
           overflow: "hidden",
           display: "flex",
@@ -289,7 +277,7 @@ export function StreamBoard(props: Props) {
             fontSize: 10.5,
             fontWeight: 700,
             letterSpacing: "0.04em",
-            padding: "6px 6px",
+            padding: "5px 6px",
             textAlign: "center",
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -299,13 +287,19 @@ export function StreamBoard(props: Props) {
         >
           {props.teams[side]}
         </div>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-evenly" }}>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
           {players.map((p, i) => {
             const gs = p.name ? props.goalscorers?.[surnameKey(p.name)] : undefined;
+            const picked = scorer?.side === side && scorer?.n === p.n;
             return (
               <button
                 key={i}
-                onClick={() => props.onTapPlayer({ n: p.n, name: p.name || `Player ${p.n}` })}
+                onClick={() => {
+                  const full = p.name || `Player ${p.n}`;
+                  setScorer(picked ? null : { side, n: p.n, name: full });
+                  props.onTapPlayer({ n: p.n, name: full });
+                }}
+                title="Tag as next goalscorer"
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -315,12 +309,16 @@ export function StreamBoard(props: Props) {
                   border: "none",
                   borderBottom: `1px solid ${BRAND.border}`,
                   padding: "0 5px",
-                  background: BRAND.surface,
+                  background: picked ? BRAND.lime : BRAND.surface,
                   cursor: "pointer",
                   overflow: "hidden",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = BRAND.surfaceHover)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = BRAND.surface)}
+                onMouseEnter={(e) => {
+                  if (!picked) e.currentTarget.style.background = BRAND.surfaceHover;
+                }}
+                onMouseLeave={(e) => {
+                  if (!picked) e.currentTarget.style.background = BRAND.surface;
+                }}
               >
                 <span
                   style={{
@@ -329,24 +327,16 @@ export function StreamBoard(props: Props) {
                     width: 15,
                     fontSize: 11,
                     fontWeight: 600,
-                    color: BRAND.textMuted,
+                    color: picked ? BRAND.bg : BRAND.textMuted,
                     textAlign: "center",
                   }}
                 >
                   {p.n}
                 </span>
-                <span
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: mirrored ? "flex-end" : "flex-start",
-                    lineHeight: 1.05,
-                  }}
-                >
+                <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: mirrored ? "flex-end" : "flex-start", lineHeight: 1.05 }}>
                   {gs && (
-                    <span style={{ ...monoData, fontSize: 8.5, fontWeight: 700, color: BRAND.lime }}>
+                    <span style={{ ...monoData, fontSize: 8.5, fontWeight: 700, color: picked ? BRAND.bg : BRAND.lime }}>
+                      {picked ? "⚽ " : ""}
                       {gs.odds.toFixed(2)}
                     </span>
                   )}
@@ -356,7 +346,7 @@ export function StreamBoard(props: Props) {
                       fontSize: 10,
                       fontWeight: 600,
                       letterSpacing: "-0.01em",
-                      color: BRAND.text,
+                      color: picked ? BRAND.bg : BRAND.text,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -374,51 +364,34 @@ export function StreamBoard(props: Props) {
     );
   };
 
-  /** Corner market panel for one bottom corner. */
+  /** Corner market panel, tucked directly under its rail; team-coloured. */
   const cornerPanel = (pos: "left" | "right", side: Side) => {
     const m = cornersOf(side);
     const c = colorOf(side);
     const nowCount = started && props.live ? props.live.corners[side] : null;
     return (
-      <div
-        style={{
-          position: "absolute",
-          bottom: 52,
-          [pos]: 10,
-          zIndex: 2147483646,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: pos === "left" ? "flex-start" : "flex-end",
-        } as React.CSSProperties}
-      >
-        <div
-          style={{
-            ...panel,
-            borderRadius: BRAND.radiusControl,
-            borderTop: `2px solid ${c.accent}`,
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
+      <div style={{ position: "absolute", left: railX(pos), top: rect.top + railH + 6, width: railW, zIndex: 2147483646 }}>
+        <div style={{ ...panel, borderRadius: BRAND.radiusControl, borderTop: `2px solid ${c.accent}`, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <div
             style={{
               ...monoLabel,
-              fontSize: 9,
+              fontSize: 8,
               fontWeight: 700,
               color: c.accent,
-              padding: "5px 9px",
+              padding: "4px 6px",
               borderBottom: `1px solid ${BRAND.border}`,
               whiteSpace: "nowrap",
-              textAlign: pos,
+              textAlign: "center",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
-            ⚑ {shortName(props.teams[side])} corners o{m ? `${m.threshold}.5` : ""}
-            {nowCount !== null ? ` · now ${nowCount}` : ""}
+            ⚑ corners o{m ? `${m.threshold}.5` : ""}
+            {nowCount !== null ? ` · ${nowCount}` : ""}
           </div>
           <div style={{ display: "flex" }}>
-            {cell(m, 0, "Over", { accent: c.accent })}
-            {cell(m, 1, "Under", { accent: c.accent })}
+            {cell(m, 0, "Over", { accent: c.accent, bg: c.accent })}
+            {cell(m, 1, "Under", { accent: c.accent, bg: c.accent })}
           </div>
         </div>
         {m && confirmBar(m)}
@@ -426,10 +399,7 @@ export function StreamBoard(props: Props) {
     );
   };
 
-  /** Current-position slip — compact, lime border, bottom centre. */
-  const positions = props.markets
-    .map((m) => ({ m, bet: props.bets.get(m.address.toBase58()) }))
-    .filter((x) => x.bet);
+  const positions = props.markets.map((m) => ({ m, bet: props.bets.get(m.address.toBase58()) })).filter((x) => x.bet);
 
   return (
     <>
@@ -448,31 +418,11 @@ export function StreamBoard(props: Props) {
         }}
       >
         <div style={{ ...panel, display: "flex", alignItems: "stretch", minHeight: 46, borderRadius: BRAND.radiusControl, overflow: "hidden" }}>
-          <span
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              padding: "0 11px",
-              borderRight: `1px solid ${BRAND.border}`,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: 999,
-                background: started && !props.live?.final ? BRAND.cyan : BRAND.textMuted,
-                flexShrink: 0,
-              }}
-            />
+          <span style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 11px", borderRight: `1px solid ${BRAND.border}` }}>
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: started && !props.live?.final ? BRAND.cyan : BRAND.textMuted, flexShrink: 0 }} />
             <span style={{ ...monoData, fontSize: 11, fontWeight: 700, color: BRAND.cyan, whiteSpace: "nowrap" }}>
               {started && props.live
-                ? `${props.live.phaseLabel}${
-                    props.live.clock.running
-                      ? ` ${Math.min(Math.floor(props.live.clock.seconds / 60) + 1, 120)}'`
-                      : ""
-                  }`
+                ? `${props.live.phaseLabel}${props.live.clock.running ? ` ${Math.min(Math.floor(props.live.clock.seconds / 60) + 1, 120)}'` : ""}`
                 : "PRE"}
             </span>
             {started && props.live && (
@@ -484,69 +434,34 @@ export function StreamBoard(props: Props) {
           {cell(matchResult, 0, props.teams.home, { accent: colorOf("home").accent, spPrice: sp?.[0], big: true })}
           {cell(matchResult, 1, "Draw", { spPrice: sp?.[1], big: true })}
           {cell(matchResult, 2, props.teams.away, { accent: colorOf("away").accent, spPrice: sp?.[2], big: true })}
-          {/* total goals in the same line as the match result */}
-          <span
-            style={{
-              ...monoLabel,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "center",
-              lineHeight: 1.15,
-              fontSize: 8,
-              color: BRAND.textMuted,
-              padding: "0 8px",
-              borderRight: `1px solid ${BRAND.border}`,
-              whiteSpace: "nowrap",
-            }}
-          >
+          <span style={{ ...monoLabel, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", lineHeight: 1.15, fontSize: 8, color: BRAND.textMuted, padding: "0 8px", borderRight: `1px solid ${BRAND.border}`, whiteSpace: "nowrap" }}>
             <span>goals</span>
             <span>o{totalGoals ? `${totalGoals.threshold}.5` : tg ? tg.line : "2.5"}</span>
           </span>
           {cell(totalGoals, 0, "Over", { spPrice: tg?.over, big: true })}
           {cell(totalGoals, 1, "Under", { spPrice: tg?.under, big: true })}
-          {/* change sides */}
           <button
             onClick={() => setSwapped((s) => !s)}
             title="Swap sides (teams change ends at half time)"
-            style={{
-              ...monoLabel,
-              pointerEvents: "auto",
-              border: "none",
-              borderLeft: `1px solid ${BRAND.border}`,
-              background: swapped ? BRAND.surfaceHover : "transparent",
-              color: BRAND.cyan,
-              fontSize: 13,
-              padding: "0 11px",
-              cursor: "pointer",
-            }}
+            style={{ ...monoLabel, pointerEvents: "auto", border: "none", borderLeft: `1px solid ${BRAND.border}`, background: swapped ? BRAND.surfaceHover : "transparent", color: BRAND.cyan, fontSize: 13, padding: "0 11px", cursor: "pointer" }}
           >
             ⇄
           </button>
         </div>
         {(sel?.m === matchResult || sel?.m === totalGoals) && sel && confirmBar(sel.m)}
-        {positions.length > 0 && (
-          <div
-            style={{
-              ...panel,
-              border: `1px solid ${BRAND.lime}`,
-              borderRadius: BRAND.radiusControl,
-              boxShadow: "0 6px 18px rgba(0,0,0,0.55)",
-              padding: "4px 9px",
-              marginTop: 6,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <span style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, whiteSpace: "nowrap" }}>
-              Position{positions.length > 1 ? `s · ${positions.length}` : ""}
-            </span>
+        {(scorer || positions.length > 0) && (
+          <div style={{ ...panel, border: `1px solid ${BRAND.lime}`, borderRadius: BRAND.radiusControl, boxShadow: "0 6px 18px rgba(0,0,0,0.55)", padding: "4px 9px", marginTop: 6, display: "flex", alignItems: "center", gap: 10 }}>
+            {scorer && (
+              <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <span style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted }}>⚽ next scorer</span>
+                <span style={{ fontFamily: UI_FONT, fontSize: 11, fontWeight: 700, color: BRAND.lime }}>
+                  {scorer.n} {shortName(scorer.name)}
+                </span>
+              </span>
+            )}
             {positions.slice(0, 3).map(({ m, bet }) => (
               <span key={m.address.toBase58()} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                <span style={{ fontFamily: UI_FONT, fontSize: 10, fontWeight: 600, color: BRAND.text, whiteSpace: "nowrap" }}>
-                  {m.sideLabels[bet!.side]}
-                </span>
+                <span style={{ fontFamily: UI_FONT, fontSize: 10, fontWeight: 600, color: BRAND.text, whiteSpace: "nowrap" }}>{m.sideLabels[bet!.side]}</span>
                 <span style={{ ...monoData, fontSize: 12, fontWeight: 700, color: BRAND.lime }}>{bet!.amount.toFixed(0)}</span>
               </span>
             ))}
@@ -554,10 +469,14 @@ export function StreamBoard(props: Props) {
         )}
       </div>
 
-      {rail("left", leftSide)}
-      {rail("right", rightSide)}
-      {cornerPanel("left", leftSide)}
-      {cornerPanel("right", rightSide)}
+      {!props.hideRails && (
+        <>
+          {rail("left", leftSide)}
+          {rail("right", rightSide)}
+          {cornerPanel("left", leftSide)}
+          {cornerPanel("right", rightSide)}
+        </>
+      )}
     </>
   );
 }
