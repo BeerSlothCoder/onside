@@ -16,8 +16,8 @@ import { BRAND, MONO_FONT, UI_FONT, monoData, monoLabel } from "./brand";
  * Cyan = act or live. Lime = selected or resolved. Dark green frames the stream.
  */
 
-const RAIL_MIN = 76;
-const RAIL_MAX = 112;
+const RAIL_MIN = 138;
+const RAIL_MAX = 200;
 
 function shortName(full: string): string {
   return full.includes(",") ? full.split(",")[0].trim() : full.split(" ").at(-1) ?? full;
@@ -68,9 +68,10 @@ export function StreamBoard(props: Props) {
   const XI = 11;
   const HEADER_H = 26;
   const CORNER_H = 66;
-  const rowH = Math.max(18, Math.min(24, (rect.height - HEADER_H - CORNER_H - 14) / XI));
+  // full-ish rows, only trimmed enough that the corner panel fits just below
+  const rowH = Math.max(22, Math.min(34, (rect.height - HEADER_H - CORNER_H - 14) / XI));
   const railH = HEADER_H + XI * rowH;
-  const pct = window.innerWidth < 1400 ? 0.09 : 0.075;
+  const pct = window.innerWidth < 1400 ? 0.16 : 0.13;
   const railW = Math.round(Math.min(RAIL_MAX, Math.max(RAIL_MIN, rect.width * pct)));
   const railX = (pos: "left" | "right") => {
     const leftBar = rect.left;
