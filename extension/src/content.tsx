@@ -55,21 +55,25 @@ setInterval(() => {
 }, 3000);
 
 // Fullscreen: only the fullscreened element's subtree renders, so reparent our
-// root into it. Players usually fullscreen a wrapper div; if the raw <video>
-// itself is fullscreened we hop to its parent (still inside the FS subtree),
-// and mark the root fullscreen so it can fill the screen.
+// root into it. Players usually fullscreen a wrapper div (hostable); if they
+// fullscreen the raw <video> or the player <iframe> we walk up to the nearest
+// element that can actually contain our overlay DOM (a bare video/iframe can't).
+const CANT_HOST = new Set(["VIDEO", "IFRAME", "IMG", "CANVAS", "OBJECT", "EMBED"]);
+
+function fullscreenHost(fe: HTMLElement): HTMLElement {
+  let el: HTMLElement | null = fe;
+  while (el && CANT_HOST.has(el.tagName)) el = el.parentElement;
+  return el ?? document.body;
+}
+
 function onFullscreenChange() {
   const root = document.getElementById(CONTAINER_ID);
   if (!root) return;
   const fe = (document.fullscreenElement ||
     (document as any).webkitFullscreenElement) as HTMLElement | null;
-  let host: HTMLElement = document.body;
-  if (fe) {
-    host = fe.tagName === "VIDEO" ? fe.parentElement ?? document.body : fe;
-    root.dataset.fs = "1";
-  } else {
-    delete root.dataset.fs;
-  }
+  const host = fe ? fullscreenHost(fe) : document.body;
+  if (fe) root.dataset.fs = "1";
+  else delete root.dataset.fs;
   if (root.parentElement !== host) host.appendChild(root);
 }
 document.addEventListener("fullscreenchange", onFullscreenChange);
