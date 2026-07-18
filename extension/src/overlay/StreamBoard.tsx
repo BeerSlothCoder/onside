@@ -146,11 +146,11 @@ export function StreamBoard(props: Props) {
           if (!picked) e.currentTarget.style.background = rest;
         }}
       >
-        <span style={{ ...monoLabel, fontSize: big ? 11 : 7, fontWeight: big ? 700 : 400, letterSpacing: big ? "0.06em" : "0.14em", color: picked ? BRAND.bg : accent ?? BRAND.textMuted, whiteSpace: "nowrap", maxWidth: big ? 140 : 60, overflow: "hidden", textOverflow: "ellipsis" }}>
+        <span style={{ ...monoLabel, fontSize: big ? 11 : 8.5, fontWeight: big ? 700 : 600, letterSpacing: big ? "0.06em" : "0.1em", color: picked ? BRAND.bg : accent ?? BRAND.textMuted, whiteSpace: "nowrap", maxWidth: big ? 140 : 60, overflow: "hidden", textOverflow: "ellipsis" }}>
           {label}
           {resolved ? " ✓" : ""}
         </span>
-        <span style={{ ...monoData, fontSize: big ? 15 : 10.5, fontWeight: 700, color: picked ? BRAND.bg : limeState ? BRAND.lime : BRAND.text, whiteSpace: "nowrap" }}>
+        <span style={{ ...monoData, fontSize: big ? 15 : 13, fontWeight: 700, color: picked ? BRAND.bg : limeState ? BRAND.lime : BRAND.text, whiteSpace: "nowrap" }}>
           {spPrice !== undefined ? spPrice.toFixed(2) : odds ? `${odds.toFixed(2)}x` : "—"}
         </span>
       </button>
@@ -223,8 +223,8 @@ export function StreamBoard(props: Props) {
           {props.teams[side]}
         </div>
 
-        {/* players — stretch to fill the middle */}
-        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        {/* players — proportional share so rows stay a readable, even height */}
+        <div style={{ flex: players.length, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {players.map((p, i) => {
             const gs = p.name ? props.goalscorers?.[surnameKey(p.name)] : undefined;
             const picked = scorer?.side === side && scorer?.n === p.n;
@@ -237,7 +237,7 @@ export function StreamBoard(props: Props) {
                   props.onTapPlayer({ n: p.n, name: full });
                 }}
                 title="Tag as next goalscorer"
-                style={{ flex: 1, minHeight: 22, display: "flex", alignItems: "center", gap: 5, flexDirection: mirrored ? "row-reverse" : "row", border: "none", borderBottom: `1px solid ${BRAND.border}`, padding: "0 5px", background: picked ? BRAND.lime : BRAND.surface, cursor: "pointer", overflow: "hidden" }}
+                style={{ flex: 1, minHeight: 20, maxHeight: 44, display: "flex", alignItems: "center", gap: 5, flexDirection: mirrored ? "row-reverse" : "row", border: "none", borderBottom: `1px solid ${BRAND.border}`, padding: "0 5px", background: picked ? BRAND.lime : BRAND.surface, cursor: "pointer", overflow: "hidden" }}
                 onMouseEnter={(e) => {
                   if (!picked) e.currentTarget.style.background = BRAND.surfaceHover;
                 }}
@@ -264,10 +264,10 @@ export function StreamBoard(props: Props) {
           })}
         </div>
 
-        {/* in-play props — fullscreen only */}
+        {/* in-play props — fullscreen only, proportional height */}
         {props.isFs && (
-          <div style={{ flexShrink: 0, borderTop: `2px solid ${colors.accent}` }}>
-            <div style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, padding: "3px 7px", borderBottom: `1px solid ${BRAND.border}`, whiteSpace: "nowrap" }}>
+          <div style={{ flex: IN_PLAY_PROPS.length + 1, minHeight: 0, display: "flex", flexDirection: "column", borderTop: `2px solid ${colors.accent}` }}>
+            <div style={{ ...monoLabel, fontSize: 7.5, color: BRAND.textMuted, padding: "3px 7px", borderBottom: `1px solid ${BRAND.border}`, whiteSpace: "nowrap", flexShrink: 0 }}>
               in-play · sim
             </div>
             {IN_PLAY_PROPS.map((pr) => {
@@ -284,7 +284,7 @@ export function StreamBoard(props: Props) {
                     })
                   }
                   title="Simulated in-play market (display only)"
-                  style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, height: 26, padding: "0 8px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: on ? BRAND.lime : `${colors.accent}18`, cursor: "pointer", overflow: "hidden" }}
+                  style={{ flex: 1, minHeight: 26, maxHeight: 46, width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, padding: "0 8px", border: "none", borderBottom: `1px solid ${BRAND.border}`, background: on ? BRAND.lime : `${colors.accent}18`, cursor: "pointer", overflow: "hidden" }}
                   onMouseEnter={(e) => {
                     if (!on) e.currentTarget.style.background = `${colors.accent}30`;
                   }}
@@ -292,10 +292,10 @@ export function StreamBoard(props: Props) {
                     if (!on) e.currentTarget.style.background = `${colors.accent}18`;
                   }}
                 >
-                  <span style={{ fontFamily: UI_FONT, fontSize: 9, fontWeight: 600, color: on ? BRAND.bg : BRAND.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ fontFamily: UI_FONT, fontSize: 10, fontWeight: 600, color: on ? BRAND.bg : BRAND.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {pr.label}
                   </span>
-                  <span style={{ ...monoData, flexShrink: 0, fontSize: 10.5, fontWeight: 700, color: on ? BRAND.bg : BRAND.cyan }}>
+                  <span style={{ ...monoData, flexShrink: 0, fontSize: 12, fontWeight: 700, color: on ? BRAND.bg : BRAND.cyan }}>
                     {pr.odds.toFixed(2)}
                   </span>
                 </button>
@@ -304,13 +304,13 @@ export function StreamBoard(props: Props) {
           </div>
         )}
 
-        {/* corners — pinned at the bottom */}
-        <div style={{ flexShrink: 0, borderTop: `2px solid ${colors.accent}` }}>
-          <div style={{ ...monoLabel, fontSize: 8, fontWeight: 700, color: colors.accent, padding: "4px 6px", borderBottom: `1px solid ${BRAND.border}`, whiteSpace: "nowrap", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {/* corners — pinned at the bottom, proportional height */}
+        <div style={{ flex: 3, minHeight: 0, display: "flex", flexDirection: "column", borderTop: `2px solid ${colors.accent}` }}>
+          <div style={{ ...monoLabel, fontSize: 8.5, fontWeight: 700, color: colors.accent, padding: "5px 6px", borderBottom: `1px solid ${BRAND.border}`, whiteSpace: "nowrap", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", flexShrink: 0 }}>
             ⚑ corners o{m ? `${m.threshold}.5` : ""}
             {nowCount !== null ? ` · ${nowCount}` : ""}
           </div>
-          <div style={{ display: "flex" }}>
+          <div style={{ display: "flex", flex: 1, minHeight: 40, alignItems: "stretch" }}>
             {cell(m, 0, "Over", { accent: colors.accent, bg: colors.accent })}
             {cell(m, 1, "Under", { accent: colors.accent, bg: colors.accent })}
           </div>
