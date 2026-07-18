@@ -133,23 +133,26 @@ export function AssignPopover(props: {
     </button>
   );
 
+  // Flip the popover ABOVE the player when they're in the lower half of the
+  // video, so it never runs off the bottom of the screen (and stays reachable).
+  const flipUp = props.v > 0.5;
   return (
     <div
       onClick={(e) => e.stopPropagation()}
       style={{
         position: "absolute",
         left: `${Math.min(Math.max(props.u * 100, 12), 88)}%`,
-        top: `${Math.min(props.v * 100, 90)}%`,
-        transform: "translate(-50%, 12px)",
+        top: `${Math.min(Math.max(props.v * 100, 6), 94)}%`,
+        transform: flipUp ? "translate(-50%, calc(-100% - 14px))" : "translate(-50%, 14px)",
         width: 280,
-        maxHeight: 300,
+        maxHeight: "min(300px, 60vh)",
         overflowY: "auto",
         pointerEvents: "auto",
         background: C.bg,
         border: `1px solid ${C.stroke}`,
         borderRadius: 12,
         padding: 10,
-        zIndex: 5,
+        zIndex: 6,
         fontFamily: UI_FONT,
         color: C.ink,
         boxShadow: "0 12px 32px rgba(0,0,0,0.6)",
