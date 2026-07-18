@@ -240,14 +240,29 @@ export function VideoOverlay(props: {
                   zIndex: selected ? 3 : picked ? 3 : a ? 2 : 1,
                 }}
               >
-                <div
+                {/* the whole frame is the click target — much easier to hit a
+                    moving player than the small chip. A faint kit-colour wash
+                    distinguishes it as a button while keeping the picture
+                    watchable; it lifts a little on hover. */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenTrackId(selected ? null : t.id);
+                    setOpenPinId(null);
+                  }}
+                  title={a ? `${a.n} · ${a.name}` : "Who is this? Click to assign"}
                   style={{
                     position: "absolute",
                     inset: 0,
-                    // solid lime fill/border is enough for the pick — no glow
+                    padding: 0,
                     border: `${picked ? 3 : 1.5}px solid ${color}`,
                     borderRadius: 4,
+                    background: selected ? `${color}33` : `${color}1c`,
+                    pointerEvents: "auto",
+                    cursor: "pointer",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = `${color}3a`)}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = selected ? `${color}33` : `${color}1c`)}
                 />
                 <button
                   onClick={(e) => {

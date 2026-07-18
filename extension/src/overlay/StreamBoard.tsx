@@ -130,10 +130,12 @@ export function StreamBoard(props: Props) {
         <span
           style={{
             ...monoLabel,
-            fontSize: big ? 9 : 7,
+            fontSize: big ? 11 : 7,
+            fontWeight: big ? 700 : 400,
+            letterSpacing: big ? "0.06em" : "0.18em",
             color: picked ? BRAND.bg : accent ?? BRAND.textMuted,
             whiteSpace: "nowrap",
-            maxWidth: big ? 120 : 90,
+            maxWidth: big ? 140 : 90,
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
@@ -284,9 +286,10 @@ export function StreamBoard(props: Props) {
             background: colors.badge,
             color: colors.badgeText,
             borderBottom: `1px solid ${BRAND.border}`,
-            fontSize: 8.5,
+            fontSize: 10.5,
             fontWeight: 700,
-            padding: "5px 6px",
+            letterSpacing: "0.04em",
+            padding: "6px 6px",
             textAlign: "center",
             whiteSpace: "nowrap",
             overflow: "hidden",
@@ -388,13 +391,23 @@ export function StreamBoard(props: Props) {
           alignItems: pos === "left" ? "flex-start" : "flex-end",
         } as React.CSSProperties}
       >
-        <div style={{ ...panel, borderRadius: BRAND.radiusControl, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            ...panel,
+            borderRadius: BRAND.radiusControl,
+            borderTop: `2px solid ${c.accent}`,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <div
             style={{
               ...monoLabel,
-              fontSize: 7.5,
+              fontSize: 9,
+              fontWeight: 700,
               color: c.accent,
-              padding: "4px 8px",
+              padding: "5px 9px",
               borderBottom: `1px solid ${BRAND.border}`,
               whiteSpace: "nowrap",
               textAlign: pos,
