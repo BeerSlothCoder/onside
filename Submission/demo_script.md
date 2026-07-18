@@ -169,8 +169,41 @@ Claim these on camera today; claim France–England winnings tomorrow if they hi
 
 - Concatenate 1 → 2 → 3. Total ≈ 300s (5:00 cap).
 - If a **real goal settles live on camera** in any part, cut to it — it's the hook;
-  also make a **15s cutdown** (bet → goal → claim) for X/TikTok.
+  also make the 15s cutdown below for X/TikTok.
 - Keep on-screen text minimal; let the overlay + the txoracle logs do the proving.
 - One honest caption somewhere: "Match result, corners, total goals settle
   trustlessly on-chain today. Next-scorer & in-play props are the roadmap (need
   player-level signed data)."
+
+---
+
+## 15-second social cutdown (X / TikTok / Reels)
+
+Goal: a scroll-stopper. **Bet → moment → paid**, no talking-head, no intro.
+Vertical 9:16 crop on the stream + overlay. Punchy captions burned in, big.
+Best assembled from your Part-1/Part-2/Part-3 footage.
+
+**[0:00–0:03] Cold open — the tap**
+- **[SCREEN]** Live match, thumb/cursor taps a market or a player on the overlay.
+- **Caption (big):** "Betting on a LIVE match — without leaving the stream"
+
+**[0:03–0:07] The bet**
+- **[SCREEN]** Stake chip → **CONFIRM** → position chip appears, balance ticks.
+- **Caption:** "$10 · in-play · on-chain"
+
+**[0:07–0:11] The moment / settle**
+- **[SCREEN]** Best: a real goal / result on camera. Else: the settled market
+  flashing green **WON**.
+- **Caption:** "It settles itself — no bookmaker, no oracle"
+
+**[0:11–0:15] Paid + logo**
+- **[SCREEN]** **CLAIM** → balance jumps up → hard cut to the Onside logo.
+- **Caption:** "onside — prediction markets, played live"
+- **End frame:** logo + handle/link.
+
+**Cutdown production notes**
+- No voiceover needed; trending audio + captions. If you do talk, one line max:
+  "Bet the moment, get paid on-chain."
+- The 3 must-have frames: **tap to bet**, **WON/settle**, **CLAIM → balance jumps**.
+- Keep every caption ≤ 6 words; the overlay is the story.
+- Loop-friendly: end on the logo so a replay flows back into the tap.
