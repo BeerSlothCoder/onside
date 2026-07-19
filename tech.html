@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Onside — Technical Documentation</title>
+<style>
+  :root{--bg:#05120c;--card:#0b1f16;--line:rgba(255,255,255,.1);--txt:#e9f5ee;--mut:#9fb3aa;--cy:#2fd3ff;--gr:#39ffb0}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(120% 60% at 50% -8%,#0e2a1c 0%,#05120c 55%);color:var(--txt);
+       font:16px/1.65 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+  .top{position:sticky;top:0;z-index:5;backdrop-filter:blur(10px);background:rgba(5,18,12,.8);border-bottom:1px solid var(--line)}
+  .top .in{max-width:900px;margin:0 auto;padding:12px 22px;display:flex;align-items:center;gap:11px}
+  .badge{width:34px;height:34px;border-radius:10px;background:radial-gradient(circle at 50% 38%,#10241b,#05100b);
+         border:1px solid rgba(47,211,255,.4);display:flex;align-items:center;justify-content:center}
+  .word{font-weight:800;font-size:20px;letter-spacing:-.4px}.word span{color:var(--gr)}
+  .top .tag{color:var(--mut);font-size:13px;border-left:1px solid var(--line);padding-left:11px}
+  .top .sp{flex:1}
+  .top a{color:var(--txt);text-decoration:none;font-size:13px;border:1px solid var(--line);border-radius:9px;padding:7px 12px}
+  .top a:hover{border-color:var(--gr)}
+  main{max-width:900px;margin:0 auto;padding:34px 22px 90px}
+  #doc h1{font-size:30px;letter-spacing:-.6px;margin:.2em 0 .3em}
+  #doc h2{font-size:22px;margin:1.8em 0 .5em;padding-top:.4em;border-top:1px solid var(--line);color:#fff}
+  #doc h3{font-size:16px;letter-spacing:.3px;text-transform:uppercase;color:var(--gr);margin:1.4em 0 .4em}
+  #doc a{color:var(--cy);text-decoration:none}#doc a:hover{text-decoration:underline}
+  #doc strong{color:#fff}
+  #doc p,#doc li{color:#d7e6df}
+  #doc code{background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:13.5px;
+            font-family:ui-monospace,Menlo,Consolas,monospace;color:#cfeee2}
+  #doc pre{background:#071410;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto}
+  #doc pre code{background:none;border:none;padding:0;font-size:13px;line-height:1.5;color:#bfe6d7;white-space:pre}
+  #doc table{border-collapse:collapse;width:100%;margin:1em 0;font-size:14.5px;display:block;overflow-x:auto}
+  #doc th,#doc td{border:1px solid var(--line);padding:9px 12px;text-align:left;vertical-align:top}
+  #doc th{background:rgba(57,255,176,.08);color:#eafff6;font-weight:700}
+  #doc tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  #doc hr{border:none;border-top:1px solid var(--line);margin:2em 0}
+  #doc ul{padding-left:22px}#doc li{margin:.25em 0}
+  #doc blockquote{border-left:3px solid var(--gr);margin:1em 0;padding:.2em 0 .2em 16px;color:#cfe6de}
+  .loading{color:var(--mut)}
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="badge"><svg width="18" height="18" viewBox="0 0 100 100" fill="none"><polygon points="44,26 44,74 79,50" fill="#2fd3ff"></polygon><rect x="33" y="21" width="7" height="58" rx="3.5" fill="#e2f2f6"></rect><circle cx="36.5" cy="50" r="8.5" fill="#2fd3ff" stroke="#07120c" stroke-width="3"></circle></svg></div>
+  <div class="word">on<span>side</span></div>
+  <div class="tag">Technical Documentation</div>
+  <div class="sp"></div>
+  <a href="https://beerslothcoder.github.io/onside/">Verify page</a>
+  <a href="extension.html">Try the extension</a>
+</div></div>
+<main><div id="doc"><p class="loading">Loading documentation…</p></div></main>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script>
+(async function(){
+  var el=document.getElementById('doc');
+  try{
+    var md=await (await fetch('onside-tech.md',{cache:'no-store'})).text();
+    if(window.marked){ el.innerHTML = (marked.parse||marked)(md); }
+    else { el.innerHTML='<pre><code>'+md.replace(/[&<>]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;'}[c];})+'</code></pre>'; }
+  }catch(e){
+    el.innerHTML='<p>Couldn’t render inline. <a href="onside-tech.md">Open the raw Markdown &rarr;</a></p>';
+  }
+})();
+</script>
+</body>
+</html>
