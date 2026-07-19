@@ -51,7 +51,7 @@ TxLINE (TxODDS)                                Solana (devnet)
 2. Open any football stream page (e.g. a YouTube match) — the Onside overlay appears.
 3. In the popup choose **Demo wallet** → one click generates a burner keypair and
    funds it with free devnet SOL + test USDC (faucet mint
-   `Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr`).
+   `33WQevmATbd5NPyWpQrWWXRBBYpYdT6F26ZG1wYnb9EX`).
 4. Bet on an open market → watch the match → the market settles with an on-chain
    Merkle proof → claim your payout. Every step is on Solana devnet; total cost: $0.
 
