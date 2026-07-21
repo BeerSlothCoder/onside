@@ -92,7 +92,7 @@ async function main() {
 
   // derive market PDAs directly (avoids throttled getProgramAccounts):
   // per fixture: matchResult (kind 0, statKey 1) + statOver corners (kind 1, statKey 7)
-  const FIXTURES = [18209181, 18218149, 18213979, 18222446, 18241006];
+  const FIXTURES = [18209181, 18218149, 18213979, 18222446, 18241006, 18257865];
   const pdas: PublicKey[] = [];
   for (const fx of FIXTURES) {
     // matchResult, home corners (7), away corners (8), total goals (1)

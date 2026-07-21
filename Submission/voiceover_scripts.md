@@ -7,7 +7,15 @@ directions. Casual, first person, slightly imperfect on purpose.
 
 ## PART 1 — voiceover (~90s)
 
-Okay so... this is a live World Cup match right now — England against France.
+hi , my name is peter, let me show you our Onside project.
+Prediction markets, played live.
+In-play sports markets that settle themselves — on-chain, from signed data by TxOdds.
+
+Okay so... this is a live World Cup match right now — England against France.in our simulation where we can bet pre match on outcome, corners and goals .also in-game betting on next goalscorer . 
+
+But we taking it further.We want real stream with real players as the canvas for the users .here it is.
+
+So again, france england game . 
 And look — all these betting buttons? They're sitting right on top of the
 stream. I never leave the game. That's Onside.
 
@@ -27,7 +35,6 @@ real market, on-chain, in USDC.
 So if I want to back England — I just tap, pick my stake, confirm. Without missing
 a single second of the game. Alright — let me actually show you how the betting
 works, up close.
-
 ---
 
 ## PART 2 — voiceover (~120s)

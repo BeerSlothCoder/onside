@@ -91,12 +91,43 @@ export function fetchProxyLineups(fixtureId: number): Promise<LineupPair | null>
   return getJson<LineupPair | null>(`/lineups/${fixtureId}`);
 }
 
+/** Baked demo anytime-goalscorer odds so the player rails always show a price
+ *  (fallback when the proxy has no live goalscorer feed, e.g. post-match). */
+const DEMO_GOALSCORER: Record<number, Record<string, Goalscorer>> = (() => {
+  const rows: Record<number, Array<[string, number]>> = {
+    18257865: [
+      // France
+      ["Mbappe, Kylian", 2.1], ["Olise, Michael", 3.4], ["Doue, Desire", 4.2],
+      ["Cherki, Rayan", 4.5], ["Rabiot, Adrien", 6.5], ["Zaire-Emery, Warren", 7.5],
+      ["Hernandez, Theo", 9.0], ["Gusto, Malo", 12.0], ["Konate, Ibrahima", 15.0],
+      ["Lacroix, Maxence", 17.0], ["Maignan, Mike", 251.0],
+      // England
+      ["Toney, Ivan", 2.6], ["Saka, Bukayo", 3.2], ["Rashford, Marcus", 3.6],
+      ["Eze, Eberechi", 4.5], ["Rogers, Morgan", 5.5], ["Rice, Declan", 8.0],
+      ["Spence, Djed", 11.0], ["Guehi, Marc", 12.0], ["Konsa, Ezri", 13.0],
+      ["Quansah, Jarell", 15.0], ["Henderson, Dean", 251.0],
+    ],
+  };
+  const out: Record<number, Record<string, Goalscorer>> = {};
+  for (const fx in rows) {
+    const m: Record<string, Goalscorer> = {};
+    for (const [name, odds] of rows[fx]) {
+      const key = surnameKey(name);
+      m[key] = { name, odds, key };
+    }
+    out[Number(fx)] = m;
+  }
+  return out;
+})();
+
 /** Anytime-goalscorer odds (the-odds-api) keyed by accent-free surname. */
 export async function fetchGoalscorer(
   fixtureId: number
 ): Promise<Record<string, Goalscorer> | null> {
   const g = await getJson<{ players: Record<string, Goalscorer> }>(`/goalscorer/${fixtureId}`);
-  return g?.players ?? null;
+  const live = g?.players ?? null;
+  if (live && Object.keys(live).length) return live;
+  return DEMO_GOALSCORER[fixtureId] ?? live;
 }
 
 /**
