@@ -140,6 +140,29 @@ TF.js WebGL uses no WASM/eval/workers, so it is immune to page CSP in the conten
 script world; frames go GPU-direct via `tf.browser.fromPixels(video)`. The model
 (~12 MB) ships in `web_accessible_resources` and loads lazily on toggle.
 
+### Honest scope — what the tracking is (and isn't)
+
+Straight answer: it's **client-side person detection + short-term multi-object
+tracking with human-assigned identities** — a tap-to-bet *interaction layer*, not a
+player-position *data product*.
+
+- **Detects people, not players.** YOLOv8n finds the generic COCO `person` class
+  (class 0) — there is **no jersey-number OCR and no kit/face re-identification**.
+- **2D screen space, not pitch XY.** Boxes are tracked in normalized video
+  coordinates; there is **no camera calibration / homography** and no real-world
+  pitch positions. This is not optical tracking à la Stats Perform / Second
+  Spectrum / Sportradar.
+- **Identity is assigned by the user.** You tap a track (or drop a pin) and pick
+  the name from the loaded lineup; the label then rides along on that track — the
+  model never decides *who* a box is.
+- **Not a settlement source.** Next-goalscorer bets do **not** settle from tracking
+  — they await player-level TxLINE signed data. Tracking is the UX substrate that
+  makes tap-to-bet work *today* and plugs into real on-chain markets the moment
+  that data exists.
+- **Best-effort.** Identities can swap on heavy occlusion, hard zoom or camera
+  cuts; the pipeline is tuned for wide broadcast shots (boxes under 2% of frame
+  height are dropped as crowd specks).
+
 ---
 
 ## 4. Data proxy & crank (`crank/`)
