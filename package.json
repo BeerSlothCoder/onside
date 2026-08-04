@@ -6,6 +6,7 @@
   "license": "MIT",
   "workspaces": [
     "packages/txline-client",
+    "packages/var-events",
     "extension",
     "crank",
     "viewer"

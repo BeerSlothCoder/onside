@@ -24,6 +24,7 @@ import {
 import { MatchView } from "./MatchView";
 import { StreamBoard } from "./StreamBoard";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
+import { OffsideLineOverlay } from "../tracking/ui/OffsideLineOverlay";
 import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
 import { teamColors } from "./teamColors";
@@ -70,6 +71,7 @@ export function Overlay() {
   const [toast, setToast] = useState<string | null>(null);
   const [tracking, setTracking] = useState(false);
   const [hideRails, setHideRails] = useState(false);
+  const [offsideLine, setOffsideLine] = useState(false);
   const [isFs, setIsFs] = useState(false);
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
@@ -301,6 +303,9 @@ export function Overlay() {
         onClose={() => setTracking(false)}
       />
     )}
+    {active && videoRect && offsideLine && (
+      <OffsideLineOverlay rect={videoRect} onClose={() => setOffsideLine(false)} />
+    )}
     {active && videoRect && (
       <StreamBoard
         rect={videoRect}
@@ -416,6 +421,26 @@ export function Overlay() {
           }}
         >
           👥
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setOffsideLine((v) => !v);
+          }}
+          title="Draw offside line — check any player's onside/offside position (approximate, for fun)"
+          style={{
+            marginLeft: 4,
+            border: `1px solid ${offsideLine ? C.cyan : C.stroke}`,
+            background: offsideLine ? C.cyan : "transparent",
+            color: offsideLine ? BRAND.bg : C.ink,
+            borderRadius: BRAND.radiusControl,
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "2px 7px",
+            cursor: "pointer",
+          }}
+        >
+          🚩
         </button>
         <span style={{ marginLeft: 2, fontSize: 12, color: C.dim }}>{open ? "▴" : "▾"}</span>
       </div>

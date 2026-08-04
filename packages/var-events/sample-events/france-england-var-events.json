@@ -1,0 +1,42 @@
+[
+  {
+    "matchId": 18257865,
+    "timestamp": "23:41",
+    "realTimeOffset": 300,
+    "varType": "GOAL_REVIEW",
+    "context": "Offside check on the France opener — tight call at the second phase",
+    "outcomeOptions": ["GOAL_STANDS", "GOAL_RULED_OUT"],
+    "officialDecision": "GOAL_STANDS",
+    "reviewDurationSeconds": 75
+  },
+  {
+    "matchId": 18257865,
+    "timestamp": "51:14",
+    "realTimeOffset": 900,
+    "varType": "RED_CARD_REVIEW",
+    "context": "DOGSO check — England defender's last-man challenge on the halfway line",
+    "outcomeOptions": ["RED_CARD_GIVEN", "NO_RED_CARD"],
+    "officialDecision": "RED_CARD_GIVEN",
+    "reviewDurationSeconds": 60
+  },
+  {
+    "matchId": 18257865,
+    "timestamp": "68:02",
+    "realTimeOffset": 1500,
+    "varType": "PENALTY_REVIEW",
+    "context": "Handball in the box on a France corner delivery",
+    "outcomeOptions": ["PENALTY_AWARDED", "NO_PENALTY"],
+    "officialDecision": "NO_PENALTY",
+    "reviewDurationSeconds": 90
+  },
+  {
+    "matchId": 18257865,
+    "timestamp": "84:37",
+    "realTimeOffset": 2100,
+    "varType": "GOAL_REVIEW",
+    "context": "Ball-out-of-play check before England's equaliser cross",
+    "outcomeOptions": ["GOAL_STANDS", "GOAL_RULED_OUT"],
+    "officialDecision": "GOAL_RULED_OUT",
+    "reviewDurationSeconds": 50
+  }
+]

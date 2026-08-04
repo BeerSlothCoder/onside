@@ -105,6 +105,60 @@ match clock, live corner counts and StablePrice reference odds. Lineups served f
       <https://beerslothcoder.github.io/onside/>
 - [ ] Pool math edge-case test suite (bankrun)
 - [ ] Demo video + submission
+- [x] **VAR-moment markets (`var-moment-replay` branch)** — goal/red-card/penalty
+      review markets fed by a scripted replay OR an admin reporting live moments by
+      hand, both settled against a *reported* decision. See
+      [`packages/var-events`](packages/var-events) and
+      [Judge quickstart](#judge-quickstart-zero-cost-no-wallet-needed) below.
+
+## VAR-moment markets
+
+A separate market type — goal / red-card / penalty review moments — fed by a
+**two-phase report** rather than live settlement: a *trigger* ("VAR just entered
+the game, here's the situation") and, later, a *resolution* ("VAR just announced
+its decision, at this exact match timestamp"). Built this way deliberately: our
+current TxLINE tier only covers the (now finished) World Cup plus international
+Friendlies, and the live feed has no VAR-review signal yet regardless of tier
+(see [`Submission/txline_api_experience.md`](Submission/txline_api_experience.md)).
+Rather than block on that access, the feature is built against a pluggable
+`VarEventSource` interface with three implementations:
+
+- **`ReplayVarEventSource`** — plays back a scripted JSON file of an
+  already-finished match on a timeline (both trigger and resolution are known in
+  advance; still fired as two separately-timed events).
+- **`AdminVarEventSource`** — an admin watching *any* match by hand (no TxODDS
+  coverage required — Czech Fortuna Liga, EU qualifiers, whatever's on TV) reports
+  the trigger, then later the resolution with its exact match-clock timestamp, as
+  it actually happens. This is the "simulate txodds/oracles" path, and it doubles
+  as a way to grow the sample-events dataset from real, admin-observed matches.
+- **`TxlineVarEventSource`** — documented plug point, not yet implemented — the
+  drop-in swap for the day a subscribed competition exposes real VAR events.
+
+Nothing else — `VarMarketController`, `VarMarketSession`, the UI — cares which one
+is feeding it; it only reacts to trigger/resolution events, so switching sources is
+a one-line change.
+
+- **Data model + sources + market state machine + session wiring + demo ledger**:
+  [`packages/var-events`](packages/var-events) (`@onside/var-events`)
+- **Sample data**: a real, finished match —
+  [`packages/var-events/sample-events/france-england-var-events.json`](packages/var-events/sample-events/france-england-var-events.json)
+  (fixture 18257865)
+- **Standalone replay demo** (no extension, no wallet):
+  `npm run build -w viewer` → `viewer/dist/var-replay.html`, or
+  `npm run dev -w viewer` then open `/var-replay.html`
+- **Admin tool** — trigger/resolve VAR moments by hand while watching a real
+  match, with a live "what viewers see" preview and a JSON export of the
+  session's resolved events: `/var-admin.html` (same dev/build flow as above)
+- **Live-stream overlay component** (for later embedding on top of the video,
+  same visual language as the StreamBoard): [`extension/src/overlay/VarMomentOverlay.tsx`](extension/src/overlay/VarMomentOverlay.tsx)
+
+Kept as a distinct market type on purpose: it resolves against a *reported*
+official decision (a human referee's call, reported by data or typed in by an
+admin), not a Merkle-proof oracle, so it never touches the CPI-into-`txoracle`
+settlement path the goal/corner/card markets use, and it spends a separate demo
+play-money ledger, never the real on-chain USDC vault. A persistent honesty badge
+("REPLAY — recorded match" or "ADMIN — reported live") stays visible on-screen at
+all times so it's never mistaken for live trustless settlement.
 
 ## Originality & attribution
 

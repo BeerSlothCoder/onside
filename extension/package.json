@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@onside/txline-client": "*",
+    "@onside/var-events": "*",
     "@solana/spl-token": "^0.4.9",
     "@solana/web3.js": "^1.98.4",
     "@tensorflow/tfjs-backend-cpu": "^4.22.0",
