@@ -88,6 +88,83 @@ that viewers' extensions subscribe to instead of a local source. Build once,
 works identically regardless of which platform the viewer is on — the
 relay is page-agnostic.
 
+## Real money for viewers — how betting actually gets paid, per platform
+
+The betting mechanism itself doesn't change per platform: it's the same
+wallet-connect + on-chain USDC vault the extension already uses on
+nova.cz/tipsport.cz today (`programs/onside/src/lib.rs` — `place_bet`
+transfers from the bettor's token account into the market's vault; `claim`
+pays out from it). What's genuinely platform-specific is *how a viewer's
+click reaches that flow at all* — same install-friction problem as Google
+Meet, with one extra wrinkle on pump.fun.
+
+**Twitch — there's a better path than our Chrome extension.** Twitch has a
+native [Extensions](https://dev.twitch.tv/docs/extensions/) framework with a
+**Video Overlay Extension** type — a transparent layer rendered on top of
+the video for *every* viewer on the channel automatically, once the
+broadcaster installs it, with zero install required on the viewer's end
+(built/tested via Twitch's [Developer Rig](https://github.com/twitchdev/extension-getting-started)).
+This is the same category of "native, no-viewer-install" integration as the
+Meet Add-ons SDK — worth building as a real Twitch Extension rather than
+leaning on our browser extension for Twitch specifically, since it removes
+the single biggest adoption blocker (every viewer having to find and install
+a Chrome extension first). Caveat: Extensions run in a Twitch-sandboxed
+iframe with their own review/approval process and their own monetization
+primitives (Bits, etc.) — wiring a Solana wallet + real-money betting inside
+that sandbox needs its own check against Twitch's extension review policy,
+on top of the gambling-content policy flagged below.
+
+**Kick — no equivalent found.** Research turned up a general developer
+platform ([dev.kick.com](https://dev.kick.com/) / docs.kick.com) — OAuth,
+webhooks, chat/channel events — but nothing resembling a native video-overlay
+extension SDK. So on Kick, our Chrome extension (each viewer installs it
+themselves) is, as far as this research found, the *only* current path to
+viewer-side buttons. Tip: since there's no native distribution channel here,
+lean on the streamer's own channel panel/links to drive viewers to install
+the extension directly, rather than expecting a platform-native integration.
+
+**pump.fun — the coin idea, and what it actually takes on our end.** Every
+pump.fun livestream is tied to one specific SPL token (that's the platform's
+whole model — the stream promotes a coin). The idea: let bettors stake
+*that stream's own coin* instead of USDC, so betting activity generates
+real on-chain volume for the coin the stream is already about — which lines
+up with pump.fun's actual revenue model (token trading, not ads/donations,
+per the Pumpcade research below).
+
+Checked this against our own program rather than assuming it's trivial:
+`place_bet` is already mint-agnostic — it just matches whatever
+`vault.mint` the market was created with
+([lib.rs:490](../programs/onside/src/lib.rs)). But `create_market` currently
+**hard-codes** the stake mint:
+
+```rust
+/// CHECK: constrained to the fixed devnet USDC mint.
+#[account(address = USDC_MINT_DEVNET)]
+pub usdc_mint: UncheckedAccount<'info>,
+```
+
+So today, every market must use that one fixed USDC mint. Supporting a
+per-stream pump.fun coin as stake is a **small, scoped on-chain change** —
+drop that `address = USDC_MINT_DEVNET` constraint so `create_market` accepts
+any SPL mint account — not a rewrite, since the vault/transfer/settlement
+logic downstream already just follows `vault.mint`. It's still a real
+program change needing redeploy + security review, though, not a config
+flag:
+
+- Payout math would need to read the mint's actual `decimals` instead of
+  assuming USDC's 6 (a memecoin's decimals aren't guaranteed to match).
+- Needs confirming the specific coin is a standard SPL Token-program mint —
+  our program's transfers use the legacy `anchor_spl::token::Transfer` CPI,
+  which doesn't handle Token-2022 extensions (transfer fees, etc.) as-is.
+  Standard pump.fun bonding-curve coins are typically plain SPL Token
+  mints, but this should be confirmed per-coin, not assumed.
+- Product-level, not just technical: staking a volatile bonding-curve coin
+  (instead of a stablecoin) means bet size and payout value swing with the
+  coin's price during the match itself — worth deciding deliberately (do
+  winnings pay out in the same coin at settlement, is that the fun part or
+  does it undermine trust in the market) rather than treating it as a pure
+  wiring change.
+
 ## Important: pump.fun already has a native competitor here
 
 pump.fun itself just led a **$1M pre-seed round into Pumpcade** — a
@@ -139,15 +216,20 @@ before any public launch.
 
 ## Recommendation
 
-Technically, the viewer-side overlay is close to free — it's the same
-extension, unmodified, tested against each platform's `<video>` element.
-The two real pieces of new work are (1) the relay for syncing VAR-moment
-state across independent viewers (shared with the Google Meet Path B build),
-and (2) a compliance pass per platform before going public — Twitch's is the
-strictest and most actively enforced, Kick's is nuanced (Stake-linked,
-tightening around real-money promotion), and pump.fun's is unclear but has a
-recent moderation-incident history plus a funded native competitor already
-in the space.
+Technically, the viewer-side overlay is close to free on Kick and pump.fun —
+same extension, unmodified, tested against each platform's `<video>`
+element. On Twitch specifically, build a real Video Overlay Extension
+instead of relying on the Chrome extension: it removes the install-friction
+problem entirely and is the closer analog to what a native, low-friction
+rollout should look like. The remaining new work: (1) the relay for syncing
+VAR-moment state across independent viewers (shared with the Google Meet
+Path B build), (2) if the pump.fun-coin idea is worth pursuing, the scoped
+`create_market` mint change above plus the product decision on volatile
+payouts, and (3) a compliance pass per platform before going public —
+Twitch's is the strictest and most actively enforced, Kick's is nuanced
+(Stake-linked, tightening around real-money promotion), and pump.fun's is
+unclear but has a recent moderation-incident history plus a funded native
+competitor already in the space.
 
 ## Sources
 - [What Is Pumpcade? The Livestream Prediction Market Built on Pump.fun](https://www.kucoin.com/blog/what-is-pumpcade-the-livestream-prediction-market-built-on-pumpfun-explained)
@@ -160,3 +242,6 @@ in the space.
 - [Who Owns Kick.com? Everything To Know About Stake And Kick](https://www.streamscheme.com/who-owns-kick-streaming/)
 - [Kick changes gambling policy as they clamp down on harmful content](https://www.dexerto.com/kick/kick-changes-gambling-policy-as-platform-clamps-down-on-harmful-content-2991333/)
 - [Kick Introduces New Gambling Broadcast Rules — Audience Protection or Stake Business?](https://igamingexpress.com/kick-introduces-new-gambling-broadcast-rules-audience-protection-or-stake-business/)
+- [Twitch Extensions overview](https://dev.twitch.tv/docs/extensions/)
+- [Twitch Extensions getting-started (video overlay type)](https://github.com/twitchdev/extension-getting-started)
+- [Kick Dev — developer platform](https://dev.kick.com/)
