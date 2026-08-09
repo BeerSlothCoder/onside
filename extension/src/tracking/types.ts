@@ -65,3 +65,14 @@ export interface Track {
   /** true while the player is briefly occluded and we're extrapolating */
   coasting: boolean;
 }
+
+/** The tracked ball — no `id`, since there's only ever one. */
+export interface BallTrack {
+  u: number;
+  v: number;
+  w: number;
+  h: number;
+  score: number;
+  /** true while the ball is briefly occluded/undetected and we're extrapolating */
+  coasting: boolean;
+}

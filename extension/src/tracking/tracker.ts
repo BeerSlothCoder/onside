@@ -4,7 +4,7 @@
 // constant-velocity prediction, and an occlusion buffer so identities
 // survive players crossing or being blocked for a few seconds.
 // Dependency-free, all coordinates normalized (0..1).
-import type { Detection, Track } from "./types";
+import type { BallTrack, Detection, Track } from "./types";
 
 const HIGH_CONF = 0.5;
 const IOU_MATCH = 0.2; // generous — boxes are small and fast on wide shots
@@ -188,5 +188,92 @@ export class ByteTracker {
     t.hits += 1;
     t.missed = 0;
     t.lastTs = now;
+  }
+}
+
+// Single-target ball tracker. There's only ever one real ball, so this
+// skips ByteTracker's multi-object identity/association machinery entirely:
+// pick the best candidate each frame, prefer one near the current
+// prediction (so a stray high-scoring look-alike elsewhere in frame doesn't
+// steal lock away from the real ball), and coast briefly through misses —
+// the ball going behind players or briefly out of frame is constant in a
+// real match.
+const BALL_MAX_MISSED = 20; // ~2.6s at ~7.7Hz before the ball is considered fully lost
+const BALL_RENDER_MISSED = 8; // keep rendering (coasting) through short occlusions
+const BALL_REACQUIRE_DIST = 0.12; // normalized distance — prefer detections near the prediction
+const BALL_VELOCITY_BLEND = 0.6;
+
+interface BState {
+  u: number;
+  v: number;
+  w: number;
+  h: number;
+  vu: number;
+  vv: number;
+  score: number;
+  missed: number;
+  lastTs: number;
+}
+
+export class BallTracker {
+  private t: BState | null = null;
+
+  reset(): void {
+    this.t = null;
+  }
+
+  update(dets: Detection[], now: number): BallTrack | null {
+    if (dets.length === 0) return this.coast(now);
+
+    const pick = this.selectBest(dets, now);
+
+    if (!this.t) {
+      this.t = { u: pick.u, v: pick.v, w: pick.w, h: pick.h, vu: 0, vv: 0, score: pick.score, missed: 0, lastTs: now };
+      return { u: pick.u, v: pick.v, w: pick.w, h: pick.h, score: pick.score, coasting: false };
+    }
+
+    const dt = (now - this.t.lastTs) / 1000;
+    if (dt > 0.03) {
+      const nvu = (pick.u + pick.w / 2 - (this.t.u + this.t.w / 2)) / dt;
+      const nvv = (pick.v + pick.h / 2 - (this.t.v + this.t.h / 2)) / dt;
+      this.t.vu = this.t.vu * (1 - BALL_VELOCITY_BLEND) + nvu * BALL_VELOCITY_BLEND;
+      this.t.vv = this.t.vv * (1 - BALL_VELOCITY_BLEND) + nvv * BALL_VELOCITY_BLEND;
+    }
+    this.t.u = pick.u;
+    this.t.v = pick.v;
+    this.t.w = pick.w;
+    this.t.h = pick.h;
+    this.t.score = pick.score;
+    this.t.missed = 0;
+    this.t.lastTs = now;
+
+    return { u: this.t.u, v: this.t.v, w: this.t.w, h: this.t.h, score: this.t.score, coasting: false };
+  }
+
+  private selectBest(dets: Detection[], now: number): Detection {
+    if (!this.t) return dets.reduce((a, b) => (b.score > a.score ? b : a));
+    const dt = Math.min(Math.max((now - this.t.lastTs) / 1000, 0), 0.6);
+    const pu = this.t.u + this.t.vu * dt + this.t.w / 2;
+    const pv = this.t.v + this.t.vv * dt + this.t.h / 2;
+    const near = dets.filter((d) => Math.hypot(d.u + d.w / 2 - pu, d.v + d.h / 2 - pv) <= BALL_REACQUIRE_DIST);
+    const pool = near.length > 0 ? near : dets;
+    return pool.reduce((a, b) => (b.score > a.score ? b : a));
+  }
+
+  private coast(now: number): BallTrack | null {
+    if (!this.t) return null;
+    this.t.missed += 1;
+    if (this.t.missed > BALL_MAX_MISSED) {
+      this.t = null;
+      return null;
+    }
+    const dt = Math.min((now - this.t.lastTs) / 1000, 0.6);
+    this.t.u += this.t.vu * dt;
+    this.t.v += this.t.vv * dt;
+    this.t.lastTs = now;
+    this.t.vu *= 0.9;
+    this.t.vv *= 0.9;
+    if (this.t.missed > BALL_RENDER_MISSED) return null; // still tracked internally, just not rendered
+    return { u: this.t.u, v: this.t.v, w: this.t.w, h: this.t.h, score: this.t.score, coasting: true };
   }
 }

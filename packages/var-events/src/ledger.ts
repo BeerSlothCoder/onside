@@ -1,13 +1,17 @@
 /**
- * Demo play-money ledger for VAR-moment predictions.
+ * Generic demo play-money ledger — used by VAR-moment predictions
+ * (market.ts) and reused as-is by other non-oracle-settled demo features
+ * (e.g. the extension's "Bet on Possession" zone grid).
  *
  * This is DELIBERATELY NOT the real settlement path: the goal/corner/card
  * markets in @onside/txline-client + the onside Solana program move real
  * (devnet) USDC through an on-chain vault, proven trustlessly against
- * TxLINE Merkle roots. VAR markets resolve against a *recorded human
- * decision* (see the honesty note in market.ts), so — to keep that
- * distinction honest and architecturally visible — they spend a separate,
- * clearly-labelled play-money balance instead of touching the real vault.
+ * TxLINE Merkle roots. Anything using this ledger instead resolves against
+ * something other than a trustless multi-party oracle — a recorded human
+ * decision (VAR), or one viewer's own local CV tracking (possession) — so,
+ * to keep that distinction honest and architecturally visible, it spends a
+ * separate, clearly-labelled play-money balance instead of touching the
+ * real vault. Pass a distinct `storageKey` per feature so balances don't mix.
  */
 
 const STARTING_BALANCE = 1000;

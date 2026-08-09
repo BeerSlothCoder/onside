@@ -1,10 +1,10 @@
 // Detection loop hook: runs YOLO on the anchored <video> at ~5–8 Hz,
-// skip-if-busy, feeds detections through the ByteTrack-lite tracker and
-// exposes tracks with persistent identities.
+// skip-if-busy, feeds person detections through the ByteTrack-lite tracker
+// and ball detections through the single-target BallTracker, exposing both.
 import { useEffect, useRef, useState } from "react";
-import type { Track } from "./types";
+import type { BallTrack, Track } from "./types";
 import { detect, initDetector } from "./detector";
-import { ByteTracker } from "./tracker";
+import { ByteTracker, BallTracker } from "./tracker";
 
 export type DetectorState = "off" | "loading" | "running" | "error";
 
@@ -13,19 +13,23 @@ const MIN_INTERVAL_MS = 130; // ≈7.7 Hz ceiling
 export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
   const [state, setState] = useState<DetectorState>("off");
   const [tracks, setTracks] = useState<Track[]>([]);
+  const [ball, setBall] = useState<BallTrack | null>(null);
   const [inferMs, setInferMs] = useState(0);
   const errors = useRef(0);
   const tracker = useRef(new ByteTracker());
+  const ballTracker = useRef(new BallTracker());
 
   useEffect(() => {
     if (!enabled || !video) {
       setState("off");
       setTracks([]);
+      setBall(null);
       return;
     }
     let stopped = false;
     errors.current = 0;
     tracker.current.reset();
+    ballTracker.current.reset();
     setState("loading");
 
     (async () => {
@@ -45,7 +49,9 @@ export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
           if (video.readyState >= 2 && !video.ended) {
             const d = await detect(video);
             if (stopped) break;
-            setTracks(tracker.current.update(d, performance.now()));
+            const now = performance.now();
+            setTracks(tracker.current.update(d.persons, now));
+            setBall(ballTracker.current.update(d.balls, now));
             setInferMs(Math.round(performance.now() - t0));
             errors.current = 0;
           }
@@ -66,5 +72,5 @@ export function useDetector(video: HTMLVideoElement | null, enabled: boolean) {
     };
   }, [enabled, video]);
 
-  return { state, tracks, inferMs };
+  return { state, tracks, ball, inferMs };
 }

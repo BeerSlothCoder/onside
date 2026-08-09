@@ -25,8 +25,10 @@ import { MatchView } from "./MatchView";
 import { StreamBoard } from "./StreamBoard";
 import { VideoOverlay } from "../tracking/ui/VideoOverlay";
 import { OffsideLineOverlay } from "../tracking/ui/OffsideLineOverlay";
+import { PossessionZoneOverlay } from "./PossessionZoneOverlay";
 import { findAnchor } from "../tracking/videoFinder";
 import { anchorRect, rectsDiffer, type Rect } from "../tracking/geometry";
+import type { BallTrack } from "../tracking/types";
 import { teamColors } from "./teamColors";
 import { OnsideLogo } from "./OnsideLogo";
 import { BRAND, UI_FONT, monoData, monoLabel } from "./brand";
@@ -72,6 +74,11 @@ export function Overlay() {
   const [tracking, setTracking] = useState(false);
   const [hideRails, setHideRails] = useState(false);
   const [offsideLine, setOffsideLine] = useState(false);
+  const [possessionZone, setPossessionZone] = useState(false);
+  const [ball, setBall] = useState<BallTrack | null>(null);
+  useEffect(() => {
+    if (!tracking) setBall(null);
+  }, [tracking]);
   const [isFs, setIsFs] = useState(false);
   const [live, setLive] = useState<Record<string, LiveScore>>({});
   const [spOdds, setSpOdds] = useState<OddsLine[] | null>(null);
@@ -301,10 +308,15 @@ export function Overlay() {
         goalscorers={goalscorers}
         flash={flash}
         onClose={() => setTracking(false)}
+        onBallUpdate={setBall}
+        forceAuto={possessionZone}
       />
     )}
     {active && videoRect && offsideLine && (
       <OffsideLineOverlay rect={videoRect} onClose={() => setOffsideLine(false)} />
+    )}
+    {active && videoRect && possessionZone && (
+      <PossessionZoneOverlay rect={videoRect} ball={ball} onClose={() => setPossessionZone(false)} />
     )}
     {active && videoRect && (
       <StreamBoard
@@ -441,6 +453,30 @@ export function Overlay() {
           }}
         >
           🚩
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPossessionZone((v) => {
+              const next = !v;
+              if (next) setTracking(true); // ball tracking needs 🎯 on; forceAuto handles the rest
+              return next;
+            });
+          }}
+          title="Bet on Possession — tap a pitch zone, win if the ball reaches it within 10s"
+          style={{
+            marginLeft: 4,
+            border: `1px solid ${possessionZone ? C.cyan : C.stroke}`,
+            background: possessionZone ? C.cyan : "transparent",
+            color: possessionZone ? BRAND.bg : C.ink,
+            borderRadius: BRAND.radiusControl,
+            fontSize: 11,
+            fontWeight: 800,
+            padding: "2px 7px",
+            cursor: "pointer",
+          }}
+        >
+          ▦
         </button>
         <span style={{ marginLeft: 2, fontSize: 12, color: C.dim }}>{open ? "▴" : "▾"}</span>
       </div>

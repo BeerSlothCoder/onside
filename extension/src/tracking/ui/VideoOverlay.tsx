@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { Assignment, Lineups, ReadbackResult } from "../types";
+import type { Assignment, BallTrack, Lineups, ReadbackResult } from "../types";
 import { anchorRect, rectsDiffer, viewportToNorm, type Rect } from "../geometry";
 import { useTracking } from "../useTracking";
 import { useDetector } from "../useDetector";
@@ -54,11 +54,22 @@ export function VideoOverlay(props: {
   goalscorers?: Record<string, { name: string; odds: number; key: string }> | null;
   flash: (msg: string) => void;
   onClose: () => void;
+  /** Pushes the live ball track up to the parent whenever it changes — lets
+   *  a sibling overlay (e.g. PossessionZoneOverlay) resolve against it
+   *  without running a second, GPU-doubling detector instance. */
+  onBallUpdate?: (ball: BallTrack | null) => void;
+  /** When true, forces CV auto-detection on even if the user hasn't clicked
+   *  🤖 Auto themselves — used by features that need ball tracking (e.g.
+   *  "Bet on Possession") so enabling them is a single click, not three. */
+  forceAuto?: boolean;
 }) {
   const { anchor, probe, pins, addPin, assignPin, removePin, clearPins } = useTracking(true);
   const [pinMode, setPinMode] = useState(false);
   const [openPinId, setOpenPinId] = useState<number | null>(null);
   const [auto, setAuto] = useState(false);
+  useEffect(() => {
+    if (props.forceAuto) setAuto(true);
+  }, [props.forceAuto]);
   const [debug, setDebug] = useState(false);
   const [trackAssign, setTrackAssign] = useState<Map<number, Assignment>>(new Map());
   const [openTrackId, setOpenTrackId] = useState<number | null>(null);
@@ -71,7 +82,12 @@ export function VideoOverlay(props: {
     assignment: Assignment | null;
   } | null>(null);
   const videoEl = anchor?.kind === "video" ? (anchor.el as HTMLVideoElement) : null;
-  const { state: detState, tracks, inferMs } = useDetector(videoEl, auto && probe === "ok");
+  const { state: detState, tracks, ball, inferMs } = useDetector(videoEl, auto && probe === "ok");
+  const [ballSelected, setBallSelected] = useState(false);
+  useEffect(() => {
+    props.onBallUpdate?.(ball);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ball]);
   const layerRef = useRef<HTMLDivElement | null>(null);
   const lastRect = useRef<Rect | null>(null);
 
@@ -311,6 +327,38 @@ export function VideoOverlay(props: {
               </div>
             );
           })}
+        {auto && ball && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setBallSelected((v) => !v);
+            }}
+            title={`ball · ${(ball.score * 100).toFixed(0)}%${ball.coasting ? " (coasting)" : ""}`}
+            style={{
+              position: "absolute",
+              left: `${(ball.u + ball.w / 2) * 100}%`,
+              top: `${(ball.v + ball.h / 2) * 100}%`,
+              transform: "translate(-50%, -50%)",
+              // transition matches the ~7Hz tracker update cadence, same as player chips
+              transition: "left 150ms linear, top 150ms linear",
+              width: ballSelected ? 22 : 16,
+              height: ballSelected ? 22 : 16,
+              padding: 0,
+              border: `1.5px solid ${ballSelected ? C.green : C.ink}`,
+              borderRadius: 999,
+              background: BRAND.panel,
+              color: BRAND.text,
+              fontSize: ballSelected ? 13 : 10,
+              lineHeight: 1,
+              opacity: ball.coasting ? 0.5 : 1,
+              pointerEvents: "auto",
+              cursor: "pointer",
+              zIndex: 4,
+            }}
+          >
+            ⚽
+          </button>
+        )}
         {pins.map((p) => (
           <PlayerChip
             key={p.id}
