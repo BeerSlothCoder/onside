@@ -15,6 +15,7 @@
     "https://*.ceskatelevize.cz/*",
     "https://*.nova.cz/*",
     "https://*.tipsport.cz/*",
+    "https://meet.google.com/*",
     "http://127.0.0.1:8787/*",
     "http://localhost:8787/*"
   ],
@@ -24,7 +25,8 @@
         "https://www.youtube.com/watch*",
         "https://*.ceskatelevize.cz/*",
         "https://*.nova.cz/*",
-        "https://*.tipsport.cz/*"
+        "https://*.tipsport.cz/*",
+        "https://meet.google.com/*"
       ],
       "js": [
         "content.js"
@@ -42,7 +44,8 @@
         "https://www.youtube.com/*",
         "https://*.ceskatelevize.cz/*",
         "https://*.nova.cz/*",
-        "https://*.tipsport.cz/*"
+        "https://*.tipsport.cz/*",
+        "https://meet.google.com/*"
       ]
     }
   ],
